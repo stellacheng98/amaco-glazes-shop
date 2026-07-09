@@ -297,8 +297,7 @@
     }
 
     function renderDetail() {
-      const params = new URLSearchParams(window.location.search);
-      const code = params.get("code");
+      const code = decodeURIComponent(window.location.hash.slice(1));
       const main = document.getElementById("detail-main");
       const p = PRODUCTS.find(x => x.code === code);
 

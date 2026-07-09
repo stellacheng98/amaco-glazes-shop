@@ -65,7 +65,7 @@ function renderProducts() {
       ? `<img class="card-img" src="${p.img}" alt="${p.code} ${p.name}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"  />
          <div class="card-swatch-circle" style="background:linear-gradient(145deg,${lighten(p.color)},${p.color});display:none"></div>`
       : `<div class="card-swatch-circle" style="background:linear-gradient(145deg,${lighten(p.color)},${p.color})"></div>`;
-    const detailUrl = `product.html?code=${encodeURIComponent(p.code)}`;
+    const detailUrl = `product.html#${encodeURIComponent(p.code)}`;
     return `
     <div class="product-card">
       <a href="${detailUrl}" class="card-swatch-link" aria-label="View details for ${p.name}">
