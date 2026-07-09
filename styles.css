@@ -350,6 +350,28 @@ body {
   cursor: not-allowed; transform: none; box-shadow: none;
 }
 
+.card-swatch-link {
+  display: block; text-decoration: none; color: inherit;
+}
+.card-detail-link {
+  display: block;
+  font-size: .72rem;
+  font-weight: 500;
+  letter-spacing: .03em;
+  color: var(--peach);
+  text-decoration: none;
+  margin-top: 8px;
+  transition: opacity .15s;
+}
+.card-detail-link:hover { opacity: .75; }
+
+/* ── detail page variables alias ── */
+:root {
+  --surface: var(--bg2);
+  --border:  #EAE0D5;
+  --ink-light: var(--ink3);
+}
+
 /* ══════════════════════════════════
    CART DRAWER
 ══════════════════════════════════ */

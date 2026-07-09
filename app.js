@@ -1,3 +1,12 @@
+// ── AMACO product URL helper ──
+function amacoUrl(p) {
+  const slug = (p.code + "-" + p.name)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  return "https://shop.amaco.com/" + slug + "/";
+}
+
 // ── State ──
 let cart = [];
 let activeFilter = "all";
@@ -56,19 +65,22 @@ function renderProducts() {
       ? `<img class="card-img" src="${p.img}" alt="${p.code} ${p.name}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"  />
          <div class="card-swatch-circle" style="background:linear-gradient(145deg,${lighten(p.color)},${p.color});display:none"></div>`
       : `<div class="card-swatch-circle" style="background:linear-gradient(145deg,${lighten(p.color)},${p.color})"></div>`;
+    const detailUrl = `product.html?code=${encodeURIComponent(p.code)}`;
     return `
     <div class="product-card">
-      <div class="card-swatch" style="background:${bgAlpha}">
-        ${imgHtml}
-        <div class="badge-row">
-          <span class="badge badge-series">${p.series}</span>
-          ${p.outOfStock
-            ? `<span class="badge badge-oos">Out of stock</span>`
-            : p.isNew
-            ? `<span class="badge badge-new">New</span>`
-            : ""}
+      <a href="${detailUrl}" class="card-swatch-link" aria-label="View details for ${p.name}">
+        <div class="card-swatch" style="background:${bgAlpha}">
+          ${imgHtml}
+          <div class="badge-row">
+            <span class="badge badge-series">${p.series}</span>
+            ${p.outOfStock
+              ? `<span class="badge badge-oos">Out of stock</span>`
+              : p.isNew
+              ? `<span class="badge badge-new">New</span>`
+              : ""}
+          </div>
         </div>
-      </div>
+      </a>
       <div class="card-body">
         <div class="card-code">${p.code}</div>
         <div class="card-name">${p.name}</div>
@@ -85,6 +97,7 @@ function renderProducts() {
             aria-label="Add ${p.name} to cart"
           >+</button>
         </div>
+        <a href="${detailUrl}" class="card-detail-link">View details →</a>
       </div>
     </div>`;
   }).join("");
