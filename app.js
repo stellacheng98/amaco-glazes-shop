@@ -51,12 +51,15 @@ function renderProducts() {
   }
 
   grid.innerHTML = filtered.map(p => {
-    const bgAlpha = p.color + "28";
+    const bgAlpha = p.color + "22";
+    const imgHtml = p.img
+      ? `<img class="card-img" src="${p.img}" alt="${p.code} ${p.name}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"  />
+         <div class="card-swatch-circle" style="background:linear-gradient(145deg,${lighten(p.color)},${p.color});display:none"></div>`
+      : `<div class="card-swatch-circle" style="background:linear-gradient(145deg,${lighten(p.color)},${p.color})"></div>`;
     return `
     <div class="product-card">
       <div class="card-swatch" style="background:${bgAlpha}">
-        <div class="card-swatch-bg" style="background:radial-gradient(circle at 30% 30%, ${p.color}55, transparent 70%)"></div>
-        <div class="card-swatch-circle" style="background:linear-gradient(145deg, ${lighten(p.color)}, ${p.color})"></div>
+        ${imgHtml}
         <div class="badge-row">
           <span class="badge badge-series">${p.series}</span>
           ${p.outOfStock
