@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sample Glaze Co. — AMACO Mid-High Fire Glazes</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="logo">
+        <span class="logo-icon">🏺</span>
+        <span>Sample Glaze Co.</span>
+      </a>
+      <div class="nav-links">
+        <a href="index.html" class="nav-link active">Shop</a>
+        <a href="about.html" class="nav-link">About</a>
+        <a href="#" class="cart-btn" onclick="toggleCart()">
+          Cart <span class="cart-count" id="cart-count">0</span>
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-inner">
+      <p class="hero-eyebrow">Ceramics Made Easier</p>
+      <h1 class="hero-title">Try before you<br><em>commit</em></h1>
+      <p class="hero-sub">4 oz sample jars of AMACO mid-high fire glazes — perfect for testing, layering, and discovering your palette without buying full pints.</p>
+      <a href="#products" class="btn-primary">Browse Glazes</a>
+    </div>
+    <div class="hero-blobs">
+      <div class="blob blob-1"></div>
+      <div class="blob blob-2"></div>
+      <div class="blob blob-3"></div>
+    </div>
+  </section>
+
+  <!-- FILTERS -->
+  <section class="filters-bar" id="products">
+    <div class="filters-inner">
+      <span class="filters-label">Series:</span>
+      <div class="filter-chips" id="filter-chips">
+        <button class="chip active" data-series="all">All</button>
+        <button class="chip" data-series="C">Celadon</button>
+        <button class="chip" data-series="CO">Cosmos</button>
+        <button class="chip" data-series="CR">Crawls</button>
+        <button class="chip" data-series="DL">Dipping & Layering</button>
+        <button class="chip" data-series="HF">High Fire</button>
+        <button class="chip" data-series="KI">Kiln Ice</button>
+        <button class="chip" data-series="PC">Potter's Choice</button>
+        <button class="chip" data-series="PCF">PC Flux</button>
+        <button class="chip" data-series="PG">Phase Glaze</button>
+      </div>
+      <input class="search-input" type="text" id="search" placeholder="Search glazes…" />
+    </div>
+  </section>
+
+  <!-- PRODUCT GRID -->
+  <section class="products">
+    <div class="products-grid" id="products-grid">
+      <!-- injected by JS -->
+    </div>
+  </section>
+
+  <!-- CART DRAWER -->
+  <div class="cart-overlay" id="cart-overlay" onclick="toggleCart()"></div>
+  <aside class="cart-drawer" id="cart-drawer">
+    <div class="cart-header">
+      <h2>Your Cart</h2>
+      <button class="cart-close" onclick="toggleCart()">✕</button>
+    </div>
+    <div class="cart-items" id="cart-items">
+      <p class="cart-empty">Your cart is empty.</p>
+    </div>
+    <div class="cart-footer" id="cart-footer" style="display:none">
+      <div class="cart-total">
+        Total: <strong id="cart-total">$0.00</strong>
+      </div>
+      <button class="btn-primary full-width" onclick="checkout()">Checkout</button>
+    </div>
+  </aside>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="footer-inner">
+      <p class="footer-logo">🏺 Sample Glaze Co.</p>
+      <p class="footer-note">Glazes are AMACO brand products resold as 4 oz samples. Not affiliated with AMACO.</p>
+      <p class="footer-copy">© 2026 Sample Glaze Co.</p>
+    </div>
+  </footer>
+
+  <script src="products.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
