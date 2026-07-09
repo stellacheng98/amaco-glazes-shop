@@ -197,6 +197,32 @@ const PRODUCTS = [
   // ── Phase Glaze (PG) ──
   { code: "PG-24",  name: "Night Rain",      series: "PG",  color: "#283848", price: 8.49,
     img: "https://cdn11.bigcommerce.com/s-a0h9fhqogk/images/stencil/400x400/products/2310/3718/PG-24_NightRain_Cone5_WEB__86112.1710436832.jpg?c=1" },
+
+  // ── Shino (SH) ──
+  { code: "SH-11", name: "Chai Gloss",       series: "SH",  color: "#C8956A", price: 7.99,
+    img: "https://cdn11.bigcommerce.com/s-a0h9fhqogk/images/stencil/400x400/products/1975/424/SH-11_Chai_Gloss_2048px_JPG_WEB__22658.1658905730.jpg?c=1" },
+  { code: "SH-12", name: "Chai Matte",       series: "SH",  color: "#B8856A", price: 7.99,
+    img: "https://cdn11.bigcommerce.com/s-a0h9fhqogk/images/stencil/400x400/products/1976/422/SH-12_Chai_Matte_2048px_JPG_WEB__19599.1658905594.jpg?c=1" },
+  { code: "SH-21", name: "Acai Gloss",       series: "SH",  color: "#5A3A50", price: 7.99,
+    img: "https://cdn11.bigcommerce.com/s-a0h9fhqogk/images/stencil/400x400/products/1981/411/SH-21_Acai_Gloss_2048px_JPG_WEB__40969.1658904804.jpg?c=1" },
+  { code: "SH-22", name: "Acai Matte",       series: "SH",  color: "#4A3048", price: 7.99,
+    img: "https://cdn11.bigcommerce.com/s-a0h9fhqogk/images/stencil/400x400/products/1982/409/SH-22_Acai_Matte_2048px_JPG_WEB__70692.1658904685.jpg?c=1" },
+  { code: "SH-31", name: "Cacao Gloss",      series: "SH",  color: "#7A5038", price: 7.99,
+    img: "https://cdn11.bigcommerce.com/s-a0h9fhqogk/images/stencil/400x400/products/1977/420/SH-31_Cacao_Gloss_2048px_JPG_WEB__02868.1658905367.jpg?c=1" },
+  { code: "SH-32", name: "Cacao Matte",      series: "SH",  color: "#6A4028", price: 7.99,
+    img: "https://cdn11.bigcommerce.com/s-a0h9fhqogk/images/stencil/400x400/products/1978/417/SH-32_Cacao_Matte_2048px_JPG_WEB__63884.1658905262.jpg?c=1" },
+  { code: "SH-41", name: "Oolong Gloss",     series: "SH",  color: "#C0A878", price: 7.99,
+    img: "https://cdn11.bigcommerce.com/s-a0h9fhqogk/images/stencil/400x400/products/1983/408/SH-41_Oolong_Gloss_2048px_JPG_WEB__46945.1658904314.jpg?c=1" },
+  { code: "SH-42", name: "Oolong Matte",     series: "SH",  color: "#B09870", price: 7.99,
+    img: "https://cdn11.bigcommerce.com/s-a0h9fhqogk/images/stencil/400x400/products/1984/406/SH-42_Oolong_Matte_2048px_JPG_WEB__25392.1658904046.jpg?c=1" },
+  { code: "SH-45", name: "Matcha Gloss",     series: "SH",  color: "#7A9060", price: 7.99,
+    img: "https://cdn11.bigcommerce.com/s-a0h9fhqogk/images/stencil/400x400/products/1985/404/SH-45_Match_Gloss_2048px_JPG_WEB__56317.1658903821.jpg?c=1" },
+  { code: "SH-46", name: "Matcha Matte",     series: "SH",  color: "#6A8050", price: 7.99,
+    img: "https://cdn11.bigcommerce.com/s-a0h9fhqogk/images/stencil/400x400/products/1986/401/SH-46_Matcha_Matte_2048px_JPG_WEB__12593.1658903579.jpg?c=1" },
+  { code: "SH-51", name: "Hibiscus Gloss",   series: "SH",  color: "#D07868", price: 7.99,
+    img: "https://cdn11.bigcommerce.com/s-a0h9fhqogk/images/stencil/400x400/products/1979/415/SH-51_Hibiscus_Gloss_2048px_JPG_WEB__56983.1658905087.jpg?c=1" },
+  { code: "SH-52", name: "Hibiscus Matte",   series: "SH",  color: "#C06858", price: 7.99,
+    img: "https://cdn11.bigcommerce.com/s-a0h9fhqogk/images/stencil/400x400/products/1980/414/SH-52_Hibiscus_Matte_2048px_JPG_WEB__19601.1658904893.jpg?c=1" },
 ];
 
 const SERIES_NAMES = {
@@ -209,4 +235,5 @@ const SERIES_NAMES = {
   PC:  "Potter's Choice",
   PCF: "PC Flux",
   PG:  "Phase Glaze",
+  SH:  "Shino",
 };
