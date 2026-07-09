@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "amaco-shop",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "-p", "3456", "/Users/stellacheng/Desktop/amaco-glazes-shop"],
+      "port": 3456
+    }
+  ]
+}

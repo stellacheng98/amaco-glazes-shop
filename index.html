@@ -4,8 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Sample Glaze Co. — AMACO Mid-High Fire Glazes</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
 </head>
 <body>
 
@@ -13,85 +15,131 @@
   <nav class="nav">
     <div class="nav-inner">
       <a href="index.html" class="logo">
-        <span class="logo-icon">🏺</span>
-        <span>Sample Glaze Co.</span>
+        <div class="logo-mark">🏺</div>
+        <div>
+          <span class="logo-text">Sample Glaze Co.</span>
+          <span class="logo-sub">AMACO Sample Shop</span>
+        </div>
       </a>
       <div class="nav-links">
         <a href="index.html" class="nav-link active">Shop</a>
         <a href="about.html" class="nav-link">About</a>
-        <a href="#" class="cart-btn" onclick="toggleCart()">
+        <button class="cart-btn" onclick="toggleCart()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
           Cart <span class="cart-count" id="cart-count">0</span>
-        </a>
+        </button>
       </div>
     </div>
   </nav>
 
   <!-- HERO -->
   <section class="hero">
+    <div class="hero-swatches" id="hero-swatches"></div>
     <div class="hero-inner">
-      <p class="hero-eyebrow">Ceramics Made Easier</p>
+      <div class="hero-pill">
+        <span class="hero-pill-dot"></span>
+        4 oz · Mid-High Fire · Cone 5–10
+      </div>
       <h1 class="hero-title">Try before you<br><em>commit</em></h1>
-      <p class="hero-sub">4 oz sample jars of AMACO mid-high fire glazes — perfect for testing, layering, and discovering your palette without buying full pints.</p>
-      <a href="#products" class="btn-primary">Browse Glazes</a>
-    </div>
-    <div class="hero-blobs">
-      <div class="blob blob-1"></div>
-      <div class="blob blob-2"></div>
-      <div class="blob blob-3"></div>
+      <p class="hero-body">Sample jars of every AMACO mid-high fire glaze — enough to test, layer, and discover your palette without buying a full pint.</p>
+      <div class="hero-actions">
+        <a href="#products" class="btn-primary">Browse all glazes</a>
+        <a href="about.html" class="btn-ghost">How it works</a>
+      </div>
     </div>
   </section>
+
+  <!-- STATS -->
+  <div class="stats-bar">
+    <div class="stats-inner">
+      <div class="stat">
+        <span class="stat-num">90+</span>
+        <span class="stat-label">Glazes</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat">
+        <span class="stat-num">9</span>
+        <span class="stat-label">Series</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat">
+        <span class="stat-num">4 oz</span>
+        <span class="stat-label">Per jar</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat">
+        <span class="stat-num">C 5–10</span>
+        <span class="stat-label">Fire range</span>
+      </div>
+    </div>
+  </div>
 
   <!-- FILTERS -->
   <section class="filters-bar" id="products">
     <div class="filters-inner">
-      <span class="filters-label">Series:</span>
+      <span class="filters-label">Series</span>
       <div class="filter-chips" id="filter-chips">
         <button class="chip active" data-series="all">All</button>
         <button class="chip" data-series="C">Celadon</button>
         <button class="chip" data-series="CO">Cosmos</button>
         <button class="chip" data-series="CR">Crawls</button>
-        <button class="chip" data-series="DL">Dipping & Layering</button>
+        <button class="chip" data-series="DL">Dipping &amp; Layering</button>
         <button class="chip" data-series="HF">High Fire</button>
         <button class="chip" data-series="KI">Kiln Ice</button>
         <button class="chip" data-series="PC">Potter's Choice</button>
         <button class="chip" data-series="PCF">PC Flux</button>
         <button class="chip" data-series="PG">Phase Glaze</button>
       </div>
-      <input class="search-input" type="text" id="search" placeholder="Search glazes…" />
+      <div class="search-wrap">
+        <span class="search-icon">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        </span>
+        <input class="search-input" type="text" id="search" placeholder="Search…" autocomplete="off" />
+      </div>
     </div>
   </section>
 
   <!-- PRODUCT GRID -->
   <section class="products">
-    <div class="products-grid" id="products-grid">
-      <!-- injected by JS -->
-    </div>
+    <div class="products-grid" id="products-grid"></div>
   </section>
 
   <!-- CART DRAWER -->
   <div class="cart-overlay" id="cart-overlay" onclick="toggleCart()"></div>
   <aside class="cart-drawer" id="cart-drawer">
     <div class="cart-header">
-      <h2>Your Cart</h2>
-      <button class="cart-close" onclick="toggleCart()">✕</button>
+      <h2>Your cart</h2>
+      <button class="cart-close" onclick="toggleCart()" aria-label="Close cart">✕</button>
     </div>
     <div class="cart-items" id="cart-items">
-      <p class="cart-empty">Your cart is empty.</p>
+      <div class="cart-empty">
+        <span class="cart-empty-icon">🏺</span>
+        Your cart is empty.
+      </div>
     </div>
     <div class="cart-footer" id="cart-footer" style="display:none">
       <div class="cart-total">
-        Total: <strong id="cart-total">$0.00</strong>
+        <span>Total</span>
+        <strong id="cart-total">$0.00</strong>
       </div>
-      <button class="btn-primary full-width" onclick="checkout()">Checkout</button>
+      <button class="btn-primary full-width" onclick="checkout()">Checkout →</button>
     </div>
   </aside>
 
   <!-- FOOTER -->
   <footer class="footer">
     <div class="footer-inner">
-      <p class="footer-logo">🏺 Sample Glaze Co.</p>
-      <p class="footer-note">Glazes are AMACO brand products resold as 4 oz samples. Not affiliated with AMACO.</p>
-      <p class="footer-copy">© 2026 Sample Glaze Co.</p>
+      <div class="footer-logo-wrap">
+        <div class="footer-mark">🏺</div>
+        <span class="footer-logo-text">Sample Glaze Co.</span>
+      </div>
+      <div class="footer-links">
+        <a href="index.html" class="footer-link">Shop</a>
+        <a href="about.html" class="footer-link">About</a>
+      </div>
+      <div class="footer-divider"></div>
+      <p class="footer-legal">Glazes are AMACO brand products resold as 4 oz samples. Sample Glaze Co. is not affiliated with or endorsed by AMACO / American Art Clay Co.</p>
+      <p class="footer-legal" style="opacity:.5">© 2026 Sample Glaze Co.</p>
     </div>
   </footer>
 
