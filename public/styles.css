@@ -167,6 +167,10 @@ body {
 }
 .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 7px 22px rgba(244,132,95,.45); }
 .btn-primary.full-width { width: 100%; justify-content: center; }
+.btn-primary:disabled {
+  opacity: .6; cursor: wait; transform: none;
+  box-shadow: 0 4px 16px rgba(244,132,95,.25);
+}
 
 .btn-ghost {
   display: inline-flex; align-items: center; gap: 6px;
@@ -423,6 +427,17 @@ body {
   font-size: .88rem; color: var(--ink2); margin-bottom: 12px;
 }
 .cart-total strong { font-family: var(--serif); font-size: 1.4rem; color: var(--ink); }
+
+.cart-note {
+  margin-top: 10px; text-align: center;
+  font-size: .72rem; color: var(--ink3); line-height: 1.5;
+}
+.checkout-error {
+  background: var(--peach-bg); color: #B23C1E;
+  border: 1px solid #F4C4B4; border-radius: 10px;
+  padding: 10px 12px; margin-bottom: 12px;
+  font-size: .8rem; line-height: 1.45;
+}
 
 /* ══════════════════════════════════
    NO RESULTS

@@ -190,8 +190,44 @@ function toggleCart() {
   document.body.style.overflow = open ? "hidden" : "";
 }
 
-function checkout() {
-  alert("Checkout coming soon!\n\nTotal: " + document.getElementById("cart-total").textContent);
+// ── Checkout ──
+// Sends glaze codes and quantities only. The server resolves each code to a
+// Stripe Price, so the amount charged never depends on anything sent here.
+async function checkout() {
+  if (cart.length === 0) return;
+
+  const btn = document.getElementById("checkout-btn");
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Starting checkout…";
+
+  try {
+    const res = await fetch("/create-checkout-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        items: cart.map(i => ({ code: i.code, qty: i.qty })),
+      }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Checkout is unavailable right now.");
+
+    // Hand off to Stripe's hosted Checkout page.
+    window.location.href = data.url;
+  } catch (err) {
+    showCheckoutError(err.message);
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+}
+
+function showCheckoutError(message) {
+  const el = document.getElementById("checkout-error");
+  if (!el) return;
+  el.textContent = message;
+  el.style.display = "block";
+  setTimeout(() => { el.style.display = "none"; }, 6000);
 }
 
 // ── Init ──

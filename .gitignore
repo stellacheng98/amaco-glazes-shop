@@ -1,0 +1,11 @@
+node_modules/
+
+# Secrets — never commit
+.env
+
+# Customer order records
+orders.json
+
+# Stripe product/price IDs differ between test and live mode, so this is
+# generated per environment by `npm run sync-catalog` rather than committed.
+stripe-prices.json
