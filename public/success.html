@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en" style="color-scheme: light only;">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Order confirmed — Sample Glaze Co.</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .confirm-wrap { max-width: 560px; margin: 90px auto 110px; padding: 0 24px; text-align: center; }
+    .confirm-mark {
+      width: 64px; height: 64px; margin: 0 auto 26px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 50%; background: var(--peach-bg); font-size: 1.7rem;
+    }
+    .confirm-title { font-family: var(--serif); font-size: clamp(1.9rem, 5vw, 2.6rem); color: var(--ink); margin-bottom: 14px; }
+    .confirm-sub { color: var(--ink2); font-size: .98rem; line-height: 1.7; margin-bottom: 32px; }
+    .confirm-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--r); box-shadow: var(--shadow);
+      padding: 22px 24px; text-align: left; margin-bottom: 32px;
+    }
+    .confirm-row {
+      display: flex; justify-content: space-between; gap: 16px;
+      font-size: .87rem; padding: 9px 0; color: var(--ink2);
+    }
+    .confirm-row + .confirm-row { border-top: 1px solid var(--border); }
+    .confirm-row strong { color: var(--ink); font-weight: 600; text-align: right; }
+  </style>
+</head>
+<body>
+
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="logo">
+        <div class="logo-mark">🏺</div>
+        <div>
+          <span class="logo-text">Sample Glaze Co.</span>
+          <span class="logo-sub">AMACO Sample Shop</span>
+        </div>
+      </a>
+      <div class="nav-links">
+        <a href="index.html" class="nav-link">Shop</a>
+        <a href="about.html" class="nav-link">About</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="confirm-wrap" id="confirm-wrap">
+    <div class="confirm-mark">🏺</div>
+    <h1 class="confirm-title" id="confirm-title">Confirming your order…</h1>
+    <p class="confirm-sub" id="confirm-sub">One moment while we check with Stripe.</p>
+    <div class="confirm-card" id="confirm-card" style="display:none"></div>
+    <a href="index.html" class="btn-primary">Back to the shop →</a>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-logo-wrap">
+        <div class="footer-mark">🏺</div>
+        <span class="footer-logo-text">Sample Glaze Co.</span>
+      </div>
+      <div class="footer-links">
+        <a href="index.html" class="footer-link">Shop</a>
+        <a href="about.html" class="footer-link">About</a>
+      </div>
+      <div class="footer-divider"></div>
+      <p class="footer-legal">Glazes are AMACO brand products resold as 4 oz samples. Sample Glaze Co. is not affiliated with or endorsed by AMACO / American Art Clay Co.</p>
+      <p class="footer-legal" style="opacity:.5">© 2026 Sample Glaze Co.</p>
+    </div>
+  </footer>
+
+  <script>
+    const titleEl = document.getElementById("confirm-title");
+    const subEl   = document.getElementById("confirm-sub");
+    const cardEl  = document.getElementById("confirm-card");
+
+    const money = (amount, currency) =>
+      new Intl.NumberFormat("en-US", { style: "currency", currency: (currency || "usd").toUpperCase() })
+        .format((amount || 0) / 100);
+
+    function renderConfirmed(order) {
+      titleEl.textContent = "Thank you — your order is confirmed.";
+      subEl.textContent = order.email
+        ? `A Stripe receipt is on its way to ${order.email}. Your samples ship within two business days.`
+        : "Your samples ship within two business days.";
+
+      const rows = [
+        ["Glazes", order.glazes || "—"],
+        ["Total paid", money(order.amountTotal, order.currency)],
+      ];
+      cardEl.innerHTML = rows
+        .map(([label, value]) => `<div class="confirm-row"><span>${label}</span><strong>${value}</strong></div>`)
+        .join("");
+      cardEl.style.display = "block";
+    }
+
+    function renderProblem(message) {
+      titleEl.textContent = "We couldn't confirm this order";
+      subEl.textContent = message;
+    }
+
+    async function loadOrder() {
+      const sessionId = new URLSearchParams(location.search).get("session_id");
+      if (!sessionId) {
+        renderProblem("This page is missing its checkout reference. If you were charged, email us and we'll sort it out.");
+        return;
+      }
+
+      try {
+        const res = await fetch(`/order-status?session_id=${encodeURIComponent(sessionId)}`);
+        const order = await res.json();
+        if (!res.ok) throw new Error(order.error || "Order not found.");
+
+        if (order.paymentStatus === "paid") renderConfirmed(order);
+        else renderProblem("Your payment hasn't completed yet. If you were charged, it will settle shortly.");
+      } catch (err) {
+        renderProblem(err.message);
+      }
+    }
+
+    loadOrder();
+  </script>
+</body>
+</html>

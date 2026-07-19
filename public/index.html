@@ -123,7 +123,9 @@
         <span>Total</span>
         <strong id="cart-total">$0.00</strong>
       </div>
-      <button class="btn-primary full-width" onclick="checkout()">Checkout →</button>
+      <div class="checkout-error" id="checkout-error" role="alert" style="display:none"></div>
+      <button class="btn-primary full-width" id="checkout-btn" onclick="checkout()">Checkout →</button>
+      <p class="cart-note">Secure payment via Stripe · Shipping calculated at checkout</p>
     </div>
   </aside>
 

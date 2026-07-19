@@ -1,0 +1,27 @@
+#!/bin/sh
+# Blocks commits containing a Stripe secret or restricted key.
+#
+# Enable once per clone:
+#   git config core.hooksPath .githooks
+#
+# Scans staged content only, so an ignored .env sitting in the working tree is
+# fine — this catches the case where it gets force-added or a key is pasted
+# into source.
+
+if git diff --cached -U0 | grep -nE '(^\+.*)(sk_live_|sk_test_|rk_live_|rk_test_)[A-Za-z0-9]{16}' >/dev/null; then
+  echo ""
+  echo "  BLOCKED: staged changes contain what looks like a Stripe secret key."
+  echo ""
+  echo "  Offending lines:"
+  git diff --cached -U0 \
+    | grep -nE '(^\+.*)(sk_live_|sk_test_|rk_live_|rk_test_)[A-Za-z0-9]{16}' \
+    | sed -E 's/(sk_live_|sk_test_|rk_live_|rk_test_)[A-Za-z0-9]+/\1<redacted>/g' \
+    | sed 's/^/    /'
+  echo ""
+  echo "  Secret keys belong in .env (gitignored) or an exported shell variable."
+  echo "  If this is a false positive: git commit --no-verify"
+  echo ""
+  exit 1
+fi
+
+exit 0
