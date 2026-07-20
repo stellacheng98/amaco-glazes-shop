@@ -235,9 +235,16 @@ function updateCartUI() {
   }
 
   footerEl.style.display = "block";
-  itemsEl.innerHTML = cart.map(item => `
+  itemsEl.innerHTML = cart.map(item => {
+    // Show the product photo, falling back to the color swatch if it is missing
+    // or fails to load — same pattern as the product cards.
+    const thumb = item.img
+      ? `<img class="cart-item-img" src="${item.img}" alt="${item.code} ${item.name}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='block'" />
+         <div class="cart-item-swatch" style="background:${item.color};display:none"></div>`
+      : `<div class="cart-item-swatch" style="background:${item.color}"></div>`;
+    return `
     <div class="cart-item">
-      <div class="cart-item-swatch" style="background:${item.color}"></div>
+      ${thumb}
       <div class="cart-item-info">
         <div class="cart-item-name">${item.code} ${item.name}</div>
         <div class="cart-item-sub">4 oz · $${item.price.toFixed(2)} each</div>
@@ -251,7 +258,8 @@ function updateCartUI() {
         </div>
       </div>
     </div>
-  `).join("");
+  `;
+  }).join("");
 
   const grand = cart.reduce((s, i) => s + i.price * i.qty, 0);
   document.getElementById("cart-total").textContent = `$${grand.toFixed(2)}`;
