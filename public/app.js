@@ -3,6 +3,80 @@ let cart = [];
 let activeFilter = "all";
 let searchQuery = "";
 
+// ── Cart persistence ──
+// Only { code, qty } is stored. Name/price/color are re-hydrated from PRODUCTS
+// on load, so a catalog or price change is never served stale from a shopper's
+// browser — same trust model the server uses when it re-prices each code.
+const CART_KEY = "amaco-cart-v1";
+
+function saveCart() {
+  try {
+    localStorage.setItem(
+      CART_KEY,
+      JSON.stringify(cart.map(i => ({ code: i.code, qty: i.qty })))
+    );
+  } catch (_) {
+    // Private mode or storage full — degrade to in-memory-only, as before.
+  }
+}
+
+// Returns { items, dropped } where `dropped` names entries that are no longer
+// purchasable (left the catalog or went out of stock) so we can tell the user.
+function loadCart() {
+  let stored;
+  try {
+    stored = JSON.parse(localStorage.getItem(CART_KEY) || "[]");
+  } catch (_) {
+    return { items: [], dropped: [] };
+  }
+  if (!Array.isArray(stored)) return { items: [], dropped: [] };
+
+  const items = [];
+  const dropped = [];
+  for (const entry of stored) {
+    const product = PRODUCTS.find(p => p.code === entry.code);
+    if (!product) {
+      dropped.push(entry.code);
+      continue;
+    }
+    if (product.outOfStock) {
+      dropped.push(product.name);
+      continue;
+    }
+    // Clamp to the server's accepted range (1..99).
+    const qty = Math.min(99, Math.max(1, Math.floor(Number(entry.qty) || 0)));
+    items.push({ ...product, qty });
+  }
+  return { items, dropped };
+}
+
+// ── Toast ──
+function showToast(message) {
+  const el = document.createElement("div");
+  el.className = "cart-toast";
+  el.textContent = message;
+  el.style.cssText = `
+    position: fixed; left: 50%; bottom: 28px;
+    transform: translateX(-50%) translateY(12px);
+    max-width: min(420px, 90vw); z-index: 2000;
+    background: var(--ink, #3a3226); color: #fff;
+    padding: 13px 20px; border-radius: 12px;
+    font-size: .88rem; line-height: 1.5;
+    box-shadow: 0 8px 30px rgba(0,0,0,.18);
+    opacity: 0; transition: opacity .3s ease, transform .3s ease;
+  `;
+  document.body.appendChild(el);
+  requestAnimationFrame(() => {
+    el.style.opacity = "1";
+    el.style.transform = "translateX(-50%) translateY(0)";
+  });
+  setTimeout(() => {
+    el.style.opacity = "0";
+    el.style.transform = "translateX(-50%) translateY(12px)";
+    setTimeout(() => el.remove(), 300);
+  }, 5000);
+}
+
 // ── Hero floating swatches ──
 function initHeroSwatches() {
   const container = document.getElementById("hero-swatches");
@@ -146,6 +220,8 @@ function changeQty(code, delta) {
 }
 
 function updateCartUI() {
+  saveCart();
+
   const total = cart.reduce((s, i) => s + i.qty, 0);
   document.getElementById("cart-count").textContent = total;
 
@@ -233,3 +309,24 @@ function showCheckoutError(message) {
 // ── Init ──
 initHeroSwatches();
 renderProducts();
+
+// Restore the cart from a prior visit / the Stripe round trip.
+const { items, dropped } = loadCart();
+cart = items;
+updateCartUI();
+if (dropped.length) {
+  const names = dropped.join(", ");
+  showToast(
+    dropped.length === 1
+      ? `${names} is no longer available and was removed from your cart.`
+      : `${names} are no longer available and were removed from your cart.`
+  );
+}
+
+// Back/forward from Stripe restores the page from bfcache with the *old* in-memory
+// cart still in the heap. Re-read storage so a cleared (paid) or changed cart wins.
+window.addEventListener("pageshow", (e) => {
+  if (!e.persisted) return;
+  cart = loadCart().items;
+  updateCartUI();
+});

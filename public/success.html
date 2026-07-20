@@ -114,8 +114,13 @@
         const order = await res.json();
         if (!res.ok) throw new Error(order.error || "Order not found.");
 
-        if (order.paymentStatus === "paid") renderConfirmed(order);
-        else renderProblem("Your payment hasn't completed yet. If you were charged, it will settle shortly.");
+        if (order.paymentStatus === "paid") {
+          // Payment went through — empty the cart (keyed to match public/app.js).
+          try { localStorage.removeItem("amaco-cart-v1"); } catch (_) {}
+          renderConfirmed(order);
+        } else {
+          renderProblem("Your payment hasn't completed yet. If you were charged, it will settle shortly.");
+        }
       } catch (err) {
         renderProblem(err.message);
       }
