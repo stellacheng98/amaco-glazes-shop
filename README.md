@@ -378,6 +378,144 @@ directly (`node scripts/stock.js C-05 out`) doesn't need it.
 - [ ] `PUBLIC_URL` matches the real domain, over HTTPS
 - [ ] A real test purchase completed and confirmed in the Stripe Dashboard
 
+### Full walkthrough — AWS (Lightsail or EC2)
+
+A concrete single-instance runbook. **Lightsail** is the simplest path; **EC2** is
+identical except where noted. Everything runs on one small Ubuntu instance;
+commands assume the default `ubuntu` user.
+
+**1. Instance + persistent disk.** Launch an Ubuntu 22.04+ instance (smallest
+tier is plenty). Attach a **block-storage disk** and mount it at `/data` — the
+database lives there so it survives instance replacement. Check the device name
+with `lsblk`, then (first time only):
+
+```bash
+sudo mkfs -t ext4 /dev/xvdf          # ONLY on a fresh, empty disk — this erases it
+sudo mkdir -p /data
+echo '/dev/xvdf /data ext4 defaults,nofail 0 2' | sudo tee -a /etc/fstab
+sudo mount -a && sudo chown ubuntu /data
+```
+
+**2. Install Node 20+ and Litestream.**
+
+```bash
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs build-essential python3   # build tools for native modules
+curl -L https://github.com/benbjohnson/litestream/releases/latest/download/litestream-linux-amd64.deb -o /tmp/ls.deb
+sudo dpkg -i /tmp/ls.deb              # use the arm64 asset on Graviton/arm instances
+```
+
+**3. Get the code.**
+
+```bash
+git clone https://github.com/stellacheng98/amaco-glazes-shop.git
+cd amaco-glazes-shop
+npm ci --omit=dev
+```
+
+**4. S3 bucket + credentials.** Create a private bucket in the **same region** as
+the instance, then grant access to `s3:GetObject`, `s3:PutObject`, `s3:ListBucket`,
+and `s3:DeleteObject` on it:
+
+- **EC2:** attach an IAM **instance role** with that policy — no keys on disk.
+- **Lightsail:** Lightsail instances can't assume IAM roles, so create an IAM
+  **user** with the same policy and set `LITESTREAM_ACCESS_KEY_ID` /
+  `LITESTREAM_SECRET_ACCESS_KEY` in `.env` (next step).
+
+**5. Configure `.env`.**
+
+```bash
+cp .env.example .env && nano .env
+```
+
+```bash
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...        # filled in at step 9
+PUBLIC_URL=https://shop.example.com
+DATABASE_PATH=/data/shop.db
+LITESTREAM_S3_BUCKET=your-bucket
+LITESTREAM_S3_REGION=us-east-1
+# Lightsail only:
+# LITESTREAM_ACCESS_KEY_ID=...
+# LITESTREAM_SECRET_ACCESS_KEY=...
+```
+
+**6. Seed the live catalog in Stripe.**
+
+```bash
+set -a && . ./.env && set +a          # load .env into this shell
+npm run sync-catalog                  # creates live Products/Prices in /data/shop.db
+```
+
+**7. Run it as a service (systemd).** Create `/etc/systemd/system/glaze-shop.service`:
+
+```ini
+[Unit]
+Description=Sample Glaze Co.
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/amaco-glazes-shop
+EnvironmentFile=/home/ubuntu/amaco-glazes-shop/.env
+ExecStart=/usr/bin/npm run start:replicated
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now glaze-shop
+sudo systemctl status glaze-shop      # should be "active (running)"
+```
+
+On start it restores `shop.db` from S3 if `/data` is empty, then replicates every
+write. The app listens on `localhost:4242`.
+
+**8. HTTPS + domain.** Put a TLS-terminating reverse proxy in front. **Caddy** does
+automatic HTTPS in two lines — install it, then `/etc/caddy/Caddyfile`:
+
+```
+shop.example.com {
+    reverse_proxy localhost:4242
+}
+```
+
+```bash
+sudo systemctl reload caddy
+```
+
+Point the domain's DNS at the instance's static IP, and open ports **80/443** in
+the firewall (keep 4242 internal). `PUBLIC_URL` must be the `https://` domain, or
+Stripe sends paying customers to a dead return URL.
+
+**9. Register the Stripe webhook.** Dashboard → Developers → Webhooks → add
+`https://shop.example.com/webhook` for `checkout.session.completed`. Put its
+signing secret in `.env` as `STRIPE_WEBHOOK_SECRET`, then
+`sudo systemctl restart glaze-shop`.
+
+**10. Verify — including the backup.**
+
+```bash
+curl https://shop.example.com/api/products | head            # catalog serves
+# after a test purchase:
+sqlite3 /data/shop.db "SELECT stripe_session_id, email FROM orders;"
+
+# Restore drill — proves the S3 backup actually works:
+sudo systemctl stop glaze-shop
+mv /data/shop.db /data/shop.db.bak
+set -a && . ./.env && set +a
+litestream restore -config litestream.yml "$DATABASE_PATH"
+sudo systemctl start glaze-shop                              # orders should still be there
+```
+
+Don't consider the deploy done until the restore drill passes — an untested
+backup is not a backup.
+
 ## Known limitations
 
 Worth understanding before taking real money:
