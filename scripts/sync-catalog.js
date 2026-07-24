@@ -1,23 +1,18 @@
-// Creates a Stripe Product + Price for every glaze in products.js and records
-// the resulting price IDs in stripe-prices.json.
+// Creates a Stripe Product + Price for every glaze in the database and records
+// the resulting IDs back on each product row (stripe_product_id / stripe_price_id).
 //
 // Run once before starting the server, and again whenever glazes or prices
-// change in products.js:
+// change:
 //
 //   npm run sync-catalog
 //
-// Safe to re-run: glazes already recorded in stripe-prices.json are skipped,
-// and a glaze whose local price no longer matches Stripe gets a new Price
-// attached as the product's default.
+// Safe to re-run: a glaze that already has a Stripe price is skipped, and a
+// glaze whose database price no longer matches the price recorded in Stripe gets
+// a new Price minted and attached as the product's default. The catalog is
+// seeded from public/products.js automatically if the database is empty.
 import "dotenv/config";
 import Stripe from "stripe";
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
-import { PRODUCTS, SERIES_NAMES } from "../catalog.js";
-
-const rootDir = join(dirname(fileURLToPath(import.meta.url)), "..");
-const catalogPath = join(rootDir, "stripe-prices.json");
+import { seedIfEmpty, getAllProducts, getSeriesMap, setStripeIds } from "../db.js";
 
 if (!process.env.STRIPE_SECRET_KEY) {
   console.error("STRIPE_SECRET_KEY is not set. Copy .env.example to .env and fill it in.");
@@ -25,87 +20,64 @@ if (!process.env.STRIPE_SECRET_KEY) {
 }
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-
 const CURRENCY = "usd";
 
-// Stripe stores amounts in the smallest currency unit, so $7.99 is 799 cents.
-const toMinorUnits = dollars => Math.round(dollars * 100);
-
-function readExistingCatalog() {
-  if (!existsSync(catalogPath)) return {};
-  try {
-    return JSON.parse(readFileSync(catalogPath, "utf8"));
-  } catch {
-    console.warn("stripe-prices.json is unreadable — starting a fresh mapping.");
-    return {};
-  }
-}
-
-async function createGlazeProduct(glaze) {
+async function createGlazeProduct(row, seriesNames) {
   const product = await stripe.products.create({
-    name: `${glaze.code} ${glaze.name}`,
-    description: `${SERIES_NAMES[glaze.series] || glaze.series} series · 4 oz jar`,
-    images: glaze.img ? [glaze.img] : undefined,
-    metadata: { glaze_code: glaze.code, series: glaze.series },
+    name: `${row.code} ${row.name}`,
+    description: `${seriesNames[row.series_code] || row.series_code} series · 4 oz jar`,
+    images: row.image_url ? [row.image_url] : undefined,
+    metadata: { glaze_code: row.code, series: row.series_code },
     default_price_data: {
       currency: CURRENCY,
-      unit_amount: toMinorUnits(glaze.price),
+      unit_amount: row.price_cents,
     },
   });
-  return product;
+  return { productId: product.id, priceId: product.default_price };
 }
 
-// The local price changed, so mint a new Price and make it the default. Stripe
+// The database price changed, so mint a new Price and make it the default. Stripe
 // prices are immutable, so the old one is deactivated rather than edited.
-async function repriceGlazeProduct(glaze, productId, stalePriceId) {
+async function repriceGlazeProduct(row) {
   const price = await stripe.prices.create({
-    product: productId,
+    product: row.stripe_product_id,
     currency: CURRENCY,
-    unit_amount: toMinorUnits(glaze.price),
+    unit_amount: row.price_cents,
   });
-  await stripe.products.update(productId, { default_price: price.id });
-  await stripe.prices.update(stalePriceId, { active: false });
-  return price;
+  await stripe.products.update(row.stripe_product_id, { default_price: price.id });
+  if (row.stripe_price_id) await stripe.prices.update(row.stripe_price_id, { active: false });
+  return price.id;
 }
 
 async function syncCatalog() {
-  const catalog = readExistingCatalog();
+  seedIfEmpty();
+
+  const seriesNames = getSeriesMap();
+  const products = getAllProducts();
   let created = 0;
   let repriced = 0;
   let unchanged = 0;
 
-  for (const glaze of PRODUCTS) {
-    const existing = catalog[glaze.code];
-
-    if (!existing) {
-      const product = await createGlazeProduct(glaze);
-      catalog[glaze.code] = {
-        productId: product.id,
-        priceId: product.default_price,
-        unitAmount: toMinorUnits(glaze.price),
-      };
+  for (const row of products) {
+    if (!row.stripe_product_id) {
+      const { productId, priceId } = await createGlazeProduct(row, seriesNames);
+      // Written per glaze so an interrupted run doesn't orphan products in Stripe
+      // that the database has no record of.
+      setStripeIds(row.code, { productId, priceId, priceCents: row.price_cents });
       created++;
-      console.log(`created  ${glaze.code} ${glaze.name} → ${product.default_price}`);
-    } else if (existing.unitAmount !== toMinorUnits(glaze.price)) {
-      const price = await repriceGlazeProduct(glaze, existing.productId, existing.priceId);
-      catalog[glaze.code] = {
-        productId: existing.productId,
-        priceId: price.id,
-        unitAmount: toMinorUnits(glaze.price),
-      };
+      console.log(`created  ${row.code} ${row.name} → ${priceId}`);
+    } else if (row.stripe_price_cents !== row.price_cents) {
+      const priceId = await repriceGlazeProduct(row);
+      setStripeIds(row.code, { productId: row.stripe_product_id, priceId, priceCents: row.price_cents });
       repriced++;
-      console.log(`repriced ${glaze.code} ${glaze.name} → ${price.id}`);
+      console.log(`repriced ${row.code} ${row.name} → ${priceId}`);
     } else {
       unchanged++;
     }
-
-    // Persist after every glaze so an interrupted run doesn't orphan products
-    // in Stripe that this file has no record of.
-    writeFileSync(catalogPath, JSON.stringify(catalog, null, 2) + "\n");
   }
 
   console.log(`\nDone. ${created} created, ${repriced} repriced, ${unchanged} unchanged.`);
-  console.log(`Mapping written to stripe-prices.json (${Object.keys(catalog).length} glazes).`);
+  console.log(`${products.length} glazes recorded in the database.`);
 }
 
 syncCatalog().catch(err => {

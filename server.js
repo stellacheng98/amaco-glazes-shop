@@ -1,10 +1,15 @@
 import "dotenv/config";
 import express from "express";
 import Stripe from "stripe";
-import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { findProduct } from "./catalog.js";
+import {
+  seedIfEmpty,
+  getCatalog,
+  getSeriesMap,
+  getProductForCheckout,
+  countPricedProducts,
+} from "./db.js";
 import { recordOrder, findOrderBySessionId } from "./orders.js";
 
 const rootDir = dirname(fileURLToPath(import.meta.url));
@@ -15,28 +20,27 @@ const port = process.env.PORT || 4242;
 // domain this must be the customer-facing URL, not the local bind address.
 const publicUrl = process.env.PUBLIC_URL || `http://localhost:${port}`;
 
-// ── Stripe price lookup ───────────────────────────────────────────────
-// Written by `npm run sync-catalog`. The browser sends glaze codes and
-// quantities only — never prices — so the amount charged always comes from
-// Stripe, not from anything a customer could edit in devtools.
-const stripePricesPath = join(rootDir, "stripe-prices.json");
+// Populate the catalog on first run and migrate any legacy orders.json into the
+// database. Idempotent — a table that already has rows is left untouched.
+seedIfEmpty();
 
-// Browse-only mode: with no API key or no synced catalog the shop still serves,
-// so the front end can be worked on without Stripe credentials. Checkout says
-// plainly that it is unconfigured rather than failing in a confusing way.
-const missingSetup = [];
-if (!process.env.STRIPE_SECRET_KEY) missingSetup.push("STRIPE_SECRET_KEY is not set (copy .env.example to .env)");
-if (!existsSync(stripePricesPath)) missingSetup.push("stripe-prices.json is missing (run `npm run sync-catalog`)");
-
-const checkoutEnabled = missingSetup.length === 0;
-
+// ── Checkout availability ─────────────────────────────────────────────
+// The browser sends glaze codes and quantities only — never prices — so the
+// amount charged always comes from the Stripe Price recorded on each product,
+// not from anything a customer could edit in devtools.
+//
+// Browse-only mode: with no API key or nothing priced in Stripe the shop still
+// serves, so the front end can be worked on without Stripe credentials. Checkout
+// then says plainly that it is unconfigured rather than failing confusingly.
 const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY)
   : null;
 
-const STRIPE_PRICES = existsSync(stripePricesPath)
-  ? JSON.parse(readFileSync(stripePricesPath, "utf8"))
-  : {};
+const missingSetup = [];
+if (!process.env.STRIPE_SECRET_KEY) missingSetup.push("STRIPE_SECRET_KEY is not set (copy .env.example to .env)");
+else if (countPricedProducts() === 0) missingSetup.push("no glazes are priced in Stripe yet (run `npm run sync-catalog`)");
+
+const checkoutEnabled = missingSetup.length === 0;
 
 // ── Webhook ───────────────────────────────────────────────────────────
 // Registered before express.json() because signature verification needs the
@@ -93,6 +97,19 @@ app.post("/webhook", express.raw({ type: "application/json" }), (req, res) => {
 
 app.use(express.json());
 
+// ── Catalog API ───────────────────────────────────────────────────────
+// The front end fetches the catalog at load instead of shipping it as a baked-in
+// script, so a price, photo or stock change goes live on the next request with
+// no redeploy. Prices are shown here for display only; checkout re-prices every
+// line from the database, so a tampered value never reaches Stripe.
+app.get("/api/products", (_req, res) => {
+  res.json(getCatalog());
+});
+
+app.get("/api/series", (_req, res) => {
+  res.json(getSeriesMap());
+});
+
 // ── Checkout ──────────────────────────────────────────────────────────
 app.post("/create-checkout-session", async (req, res) => {
   if (!checkoutEnabled) {
@@ -107,14 +124,16 @@ app.post("/create-checkout-session", async (req, res) => {
 
     const lineItems = [];
     for (const item of items) {
-      const glaze = findProduct(item.code);
-      const stripePrice = STRIPE_PRICES[item.code];
+      const glaze = getProductForCheckout(item.code);
 
-      if (!glaze || !stripePrice) {
+      if (!glaze || !glaze.is_active) {
         return res.status(400).json({ error: `Unknown glaze: ${item.code}` });
       }
-      if (glaze.outOfStock) {
+      if (!glaze.in_stock) {
         return res.status(400).json({ error: `${glaze.code} ${glaze.name} is out of stock.` });
+      }
+      if (!glaze.stripe_price_id) {
+        return res.status(400).json({ error: `${glaze.code} ${glaze.name} isn't available for purchase yet.` });
       }
 
       const quantity = Number(item.qty);
@@ -122,7 +141,7 @@ app.post("/create-checkout-session", async (req, res) => {
         return res.status(400).json({ error: `Invalid quantity for ${item.code}.` });
       }
 
-      lineItems.push({ price: stripePrice.priceId, quantity });
+      lineItems.push({ price: glaze.stripe_price_id, quantity });
     }
 
     const session = await stripe.checkout.sessions.create({
@@ -182,7 +201,7 @@ app.use(express.static(join(rootDir, "public"), { extensions: ["html"] }));
 const server = app.listen(port, () => {
   console.log(`\n  Sample Glaze Co. running at ${publicUrl}\n`);
   if (checkoutEnabled) {
-    console.log(`  Checkout enabled · ${Object.keys(STRIPE_PRICES).length} glazes priced in Stripe\n`);
+    console.log(`  Checkout enabled · ${countPricedProducts()} glazes priced in Stripe\n`);
   } else {
     console.log("  Browse-only mode — checkout is disabled:");
     for (const reason of missingSetup) console.log(`    · ${reason}`);

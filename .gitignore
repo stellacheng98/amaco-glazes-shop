@@ -3,9 +3,14 @@ node_modules/
 # Secrets — never commit
 .env
 
-# Customer order records
-orders.json
+# The shop database — catalog, orders and Stripe IDs. Generated locally and
+# per environment (Stripe IDs differ between test and live mode), so it is not
+# committed. Seeded from public/products.js on first run.
+shop.db
+shop.db-shm
+shop.db-wal
 
-# Stripe product/price IDs differ between test and live mode, so this is
-# generated per environment by `npm run sync-catalog` rather than committed.
+# Legacy flat files, kept ignored so an old checkout still redacts them. The
+# database supersedes both; orders.json is imported into it on first run.
+orders.json
 stripe-prices.json

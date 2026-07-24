@@ -1,4 +1,10 @@
 // ── State ──
+// The catalog is fetched from the server at load (see init) rather than shipped
+// as a baked-in script, so a price, photo or stock change is live on next load
+// without a redeploy. These start empty and are filled once the fetch resolves.
+let PRODUCTS = [];
+let SERIES_NAMES = {};
+
 let cart = [];
 let activeFilter = "all";
 let searchQuery = "";
@@ -315,21 +321,44 @@ function showCheckoutError(message) {
 }
 
 // ── Init ──
-initHeroSwatches();
-renderProducts();
+// Fetch the catalog first, then render and rehydrate the cart against it. The
+// cart stores only { code, qty }, so it must not be restored until PRODUCTS is
+// populated or every entry would look dropped.
+async function init() {
+  try {
+    const [products, series] = await Promise.all([
+      fetch("/api/products").then(r => { if (!r.ok) throw new Error("products"); return r.json(); }),
+      fetch("/api/series").then(r => { if (!r.ok) throw new Error("series"); return r.json(); }),
+    ]);
+    PRODUCTS = products;
+    SERIES_NAMES = series;
+  } catch (_) {
+    document.getElementById("products-grid").innerHTML = `
+      <div class="no-results">
+        <span class="no-results-icon">⚠️</span>
+        We couldn't load the catalog. Please refresh the page.
+      </div>`;
+    return;
+  }
 
-// Restore the cart from a prior visit / the Stripe round trip.
-const { items, dropped } = loadCart();
-cart = items;
-updateCartUI();
-if (dropped.length) {
-  const names = dropped.join(", ");
-  showToast(
-    dropped.length === 1
-      ? `${names} is no longer available and was removed from your cart.`
-      : `${names} are no longer available and were removed from your cart.`
-  );
+  initHeroSwatches();
+  renderProducts();
+
+  // Restore the cart from a prior visit / the Stripe round trip.
+  const { items, dropped } = loadCart();
+  cart = items;
+  updateCartUI();
+  if (dropped.length) {
+    const names = dropped.join(", ");
+    showToast(
+      dropped.length === 1
+        ? `${names} is no longer available and was removed from your cart.`
+        : `${names} are no longer available and were removed from your cart.`
+    );
+  }
 }
+
+init();
 
 // Back/forward from Stripe restores the page from bfcache with the *old* in-memory
 // cart still in the heap. Re-read storage so a cleared (paid) or changed cart wins.

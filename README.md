@@ -11,19 +11,34 @@ Vanilla HTML/CSS/JS on the front end — no framework, no build step. A small Ex
 | `public/index.html` | Shop page — nav, hero, filters, product grid, cart drawer |
 | `public/about.html` | About page |
 | `public/success.html` | Post-payment order confirmation |
-| `public/products.js` | `PRODUCTS` array — the glaze catalog |
-| `public/app.js` | Cart state, filtering, search, rendering, checkout call |
+| `public/app.js` | Cart state, filtering, search, rendering; fetches the catalog and calls checkout |
+| `public/products.js` | Seed catalog — the `PRODUCTS` array the database is populated from on first run |
 | `public/styles.css` | All styling |
-| `server.js` | Static hosting, Checkout Session creation, webhook handling |
-| `catalog.js` | Loads `public/products.js` server-side so both sides share one catalog |
-| `orders.js` | File-backed order store (`orders.json`) |
-| `scripts/sync-catalog.js` | Creates a Stripe Product + Price per glaze |
+| `server.js` | Static hosting, catalog API, Checkout Session creation, webhook handling |
+| `db.js` | SQLite layer — schema, seeding, and all catalog/order data access (`shop.db`) |
+| `catalog.js` | Loads `public/products.js` server-side; used only to seed the database |
+| `orders.js` | Order store, backed by the `orders` / `order_items` tables |
+| `scripts/seed-db.js` | Seeds the database from `public/products.js` (also runs automatically on start) |
+| `scripts/sync-catalog.js` | Creates a Stripe Product + Price per glaze and records the IDs on each row |
 
-Only `public/` is web-reachable. Server files, `.env`, `orders.json`, and `stripe-prices.json` sit outside it and are never served.
+The shop is backed by a SQLite database, `shop.db`, seeded from `public/products.js` on first run. See [ROADMAP.md](ROADMAP.md) for how the shop became dynamic and what's planned next.
+
+Only `public/` is web-reachable. Server files, `.env`, `shop.db`, and the legacy `orders.json` / `stripe-prices.json` sit outside it and are never served.
+
+### Catalog API
+
+The front end fetches the catalog at load rather than shipping it as a baked-in script:
+
+| Method & path | Returns |
+| --- | --- |
+| `GET /api/products` | Active glazes as `{ code, name, series, color, price, img, outOfStock?, isNew? }` |
+| `GET /api/series` | Series-code → display-name map, e.g. `{ "C": "Celadon", … }` |
+
+Prices here are for display only — checkout re-prices every line from the database, so a value tampered with in devtools never reaches Stripe.
 
 ## Prerequisites
 
-- Node.js 18+ — the only requirement for browsing the shop locally
+- Node.js 20+ — the only requirement for browsing the shop locally (required by `better-sqlite3`)
 
 For checkout, additionally:
 
@@ -43,14 +58,15 @@ npm start
 
 Open **http://localhost:4242**.
 
-With no `STRIPE_SECRET_KEY` and no `stripe-prices.json`, the server starts in **browse-only mode**. It prints what's missing and serves the full site; only checkout is disabled, and clicking **Checkout** shows "Checkout isn't set up on this server yet" rather than failing obscurely.
+On first start the server seeds `shop.db` from `public/products.js` (101 glazes) and serves the catalog from the database — no Stripe account needed to browse.
+
+With no `STRIPE_SECRET_KEY` (or nothing priced in Stripe yet), the server starts in **browse-only mode**. It prints what's missing and serves the full site; only checkout is disabled, and clicking **Checkout** shows "Checkout isn't set up on this server yet" rather than failing obscurely.
 
 ```
   Sample Glaze Co. running at http://localhost:4242
 
   Browse-only mode — checkout is disabled:
     · STRIPE_SECRET_KEY is not set (copy .env.example to .env)
-    · stripe-prices.json is missing (run `npm run sync-catalog`)
 ```
 
 This is the mode to use for front-end and design work. Edit anything in `public/`, save, reload — there's no build step. Follow the full setup below when you need checkout working.
@@ -79,7 +95,7 @@ See [Stripe keys](#stripe-keys) below for which key does what and where each bel
 npm run sync-catalog
 ```
 
-This creates a Stripe Product and Price for each of the 101 glazes and writes the resulting IDs to `stripe-prices.json`. It's safe to re-run: existing glazes are skipped, and a glaze whose price changed in `products.js` gets a new Price attached as its default.
+This creates a Stripe Product and Price for each of the 101 glazes and records the resulting IDs on each product row in the database. (It seeds the database first if it's empty, so this works on a clean checkout.) It's safe to re-run: already-priced glazes are skipped, and a glaze whose price changed gets a new Price attached as its default.
 
 Run it again whenever you add glazes or change prices.
 
@@ -123,7 +139,7 @@ Point `stripe listen --forward-to` at the same port.
 
 A busy port is worth taking seriously: the new server exits while the old one keeps serving, so edits and environment changes appear to have no effect. The server calls this out explicitly on startup — see [When checkout says it isn't set up](#when-checkout-says-it-isnt-set-up).
 
-There's no file watching. Front-end edits under `public/` just need a browser reload, but changes to `server.js`, `catalog.js`, or `orders.js` need a restart.
+There's no file watching. Front-end edits under `public/` just need a browser reload, but changes to `server.js`, `db.js`, `catalog.js`, or `orders.js` need a restart.
 
 ### Testing a payment
 
@@ -175,9 +191,9 @@ Three things should happen, and it's worth checking all three:
 | --- | --- |
 | Browser | Redirect to the confirmation page with your glazes and total |
 | `stripe listen` | `checkout.session.completed [evt_…]` |
-| Server | `Order confirmed: cs_test_… (email)`, and a new entry in `orders.json` |
+| Server | `Order confirmed: cs_test_… (email)`, and a new row in the `orders` table |
 
-The confirmation page reads the session from Stripe directly, so it shows "paid" even when webhooks are broken. **Only `orders.json` proves fulfilment would actually fire.**
+The confirmation page reads the session from Stripe directly, so it shows "paid" even when webhooks are broken. **Only a row in the `orders` table proves fulfilment would actually fire.**
 
 Worth testing once: close the browser tab immediately after paying, before the redirect. The order should still be recorded, because fulfilment keys off the webhook rather than the customer returning.
 
@@ -196,7 +212,7 @@ lsof -ti:4242 | xargs kill    # stop it
 
 **The key isn't reaching the process.** Check the startup banner rather than guessing — it names exactly what's missing.
 
-**No `stripe-prices.json`.** Run `npm run sync-catalog`. The server needs both a key and a synced catalog before it will enable checkout.
+**Nothing priced in Stripe yet.** Run `npm run sync-catalog`. The server needs both a key and at least one glaze priced in Stripe before it will enable checkout.
 
 ## Stripe keys
 
@@ -265,10 +281,10 @@ Roll it immediately: **Dashboard → Developers → API keys → Roll key**. Thi
 ## How checkout works
 
 1. The browser POSTs `/create-checkout-session` with **glaze codes and quantities only**.
-2. The server resolves each code to a Stripe Price ID from `stripe-prices.json`, rejecting unknown, out-of-stock, or invalid-quantity items.
+2. The server resolves each code to its Stripe Price ID from the database, rejecting unknown, out-of-stock, or invalid-quantity items.
 3. Stripe creates a Checkout Session; the browser is redirected to Stripe's hosted payment page.
 4. On success, Stripe returns the customer to `/success.html?session_id=…`, which reads `/order-status` to display the result.
-5. Stripe sends `checkout.session.completed` to `/webhook`. The signature is verified, then the order is written to `orders.json`.
+5. Stripe sends `checkout.session.completed` to `/webhook`. The signature is verified, then the order and its line items are written to the `orders` / `order_items` tables.
 
 **Prices are never taken from the browser.** The client sends codes; the amount charged always comes from Stripe. A customer editing devtools cannot change what they pay.
 
@@ -276,14 +292,42 @@ Fulfilment keys off the webhook, not the success page — a customer can close t
 
 ### Adding or editing a glaze
 
-Add an entry to `PRODUCTS` in `public/products.js`, then re-run `npm run sync-catalog`:
+`public/products.js` seeds the database **only when it's empty**. Once `shop.db`
+exists, the database is authoritative and editing `products.js` no longer changes
+a running shop.
 
-```js
-{ code: "C-03", name: "Smoke", series: "C", color: "#8A9090", price: 7.99, outOfStock: true,
-  img: "https://cdn11.bigcommerce.com/..." },
+- **New glaze from scratch:** add it to `PRODUCTS`, delete `shop.db*`, then
+  `npm run sync-catalog` (which re-seeds and prices everything). This wipes local
+  orders — fine in development.
+
+  ```js
+  { code: "C-03", name: "Smoke", series: "C", color: "#8A9090", price: 7.99, outOfStock: true,
+    img: "https://cdn11.bigcommerce.com/..." },
+  ```
+
+  `color` is the swatch shown while the image loads. Omit `outOfStock` for
+  in-stock items.
+
+- **Editing an existing catalog without losing orders:** update the row directly,
+  e.g. `sqlite3 shop.db "UPDATE products SET price_cents = 899 WHERE code = 'C-03'"`,
+  then `npm run sync-catalog` to re-price it in Stripe.
+
+A proper **admin API** for catalog edits is [Phase 3 on the roadmap](ROADMAP.md#-phase-3--admin--real-inventory-planned) — it removes this friction entirely.
+
+### Marking a glaze in / out of stock
+
+Stock is a per-glaze flag on the product row. Flip it with the `stock` helper —
+no SQL, no restart (the change is live on the next page load):
+
+```bash
+npm run stock                 # list every out-of-stock glaze
+npm run stock -- C-05         # show one glaze's current status
+npm run stock -- C-05 out     # mark it out of stock
+npm run stock -- C-05 in      # put it back in stock
 ```
 
-`color` is the swatch shown while the image loads. Omit `outOfStock` for in-stock items.
+The `--` is how npm passes arguments through to the script. Running the file
+directly (`node scripts/stock.js C-05 out`) doesn't need it.
 
 ## Deploying to production
 
@@ -302,7 +346,9 @@ Add an entry to `PRODUCTS` in `public/products.js`, then re-run `npm run sync-ca
 
 `PUBLIC_URL` must be your customer-facing domain — it builds the Checkout return URLs, so a wrong value sends paying customers to a dead page.
 
-**3. Build the live catalog.** Stripe product and price IDs differ between test and live mode, so `stripe-prices.json` from local development is useless in production. Run `npm run sync-catalog` once against the live key, on the server or with the live key set locally, and make sure the resulting file is present in the deployment.
+**3. Build the live catalog.** Stripe product and price IDs differ between test and live mode, so a test-mode database is useless in production. On the server, with the live key set, run `npm run sync-catalog` once — it seeds `shop.db` from `public/products.js` and prices every glaze in live Stripe. Don't copy your local `shop.db` up.
+
+**3a. Give `shop.db` a persistent disk.** The catalog *and* orders now live in `shop.db`. Many PaaS hosts have an ephemeral filesystem that is wiped on every redeploy — mount a persistent volume for the database file (set `DATABASE_PATH` to a path on it), or the shop loses its orders and re-seeds from scratch on each deploy.
 
 **4. Register the webhook.** In **Dashboard → Developers → Webhooks**, add an endpoint at `https://your-domain.com/webhook` subscribed to `checkout.session.completed`. Copy its signing secret into `STRIPE_WEBHOOK_SECRET` and redeploy.
 
@@ -311,7 +357,8 @@ Add an entry to `PRODUCTS` in `public/products.js`, then re-run `npm run sync-ca
 ### Deployment checklist
 
 - [ ] Live keys set, and `.env` is **not** committed (it's gitignored)
-- [ ] `stripe-prices.json` generated against the live key
+- [ ] `shop.db` seeded and priced against the live key (`npm run sync-catalog`)
+- [ ] `shop.db` on a persistent disk (`DATABASE_PATH`), not an ephemeral one
 - [ ] Webhook endpoint registered and its signing secret set
 - [ ] `PUBLIC_URL` matches the real domain, over HTTPS
 - [ ] A real test purchase completed and confirmed in the Stripe Dashboard
@@ -320,8 +367,8 @@ Add an entry to `PRODUCTS` in `public/products.js`, then re-run `npm run sync-ca
 
 Worth understanding before taking real money:
 
-- **`orders.json` is not a real datastore.** It's a single-process flat file with no locking. It works for low volume on one server, but it will lose writes under concurrency and won't survive a host with an ephemeral filesystem — most PaaS hosts wipe it on redeploy. Swap `orders.js` for a database before any real traffic.
-- **No inventory enforcement.** `outOfStock` is a flag in `products.js`, checked at checkout, but nothing decrements on purchase. The same jar can be sold twice.
+- **`shop.db` is single-process SQLite.** Fine for low volume on one server, but a single file — it won't survive a host with an ephemeral filesystem (most PaaS hosts wipe it on redeploy) unless it's on a persistent disk, and it won't scale past one node. Move to a client/server database (e.g. Postgres) before serious traffic; `db.js` is the only file that talks to the store.
+- **No inventory enforcement yet.** `in_stock` is checked at checkout, but nothing decrements on purchase, so the same jar can be sold twice. Real stock tracking is [Phase 3 on the roadmap](ROADMAP.md#-phase-3--admin--real-inventory-planned).
 - **No shipping or tax.** Checkout charges for glazes only. Enable Stripe Tax and shipping rates on the Checkout Session if you need them.
 - **The cart is in-memory** and clears on reload.
 - **Product images are hotlinked** from AMACO's CDN. If those URLs rotate or the CDN blocks external referrers, images break and the hex `color` swatch shows instead. Self-host them if that matters.
