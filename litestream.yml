@@ -1,0 +1,33 @@
+# Litestream — continuous replication of the shop database to S3.
+#
+# Litestream streams every write from shop.db to an S3 bucket, so the single
+# SQLite file on disk is no longer a single point of failure: a lost instance or
+# a wiped disk restores from S3 to within seconds of the last write. See
+# scripts/start-with-litestream.sh for how it's run in production, and the README
+# deploy section for the setup.
+#
+# Reference: https://litestream.io/reference/config/
+#
+# Values are read from the environment so no secrets live in this file:
+#   DATABASE_PATH             absolute path to the DB (must match the app's)
+#   LITESTREAM_S3_BUCKET      target bucket name
+#   LITESTREAM_S3_REGION      bucket region, e.g. us-east-1
+# AWS credentials are picked up automatically from the instance's IAM role, or
+# from LITESTREAM_ACCESS_KEY_ID / LITESTREAM_SECRET_ACCESS_KEY if you set them.
+
+dbs:
+  - path: ${DATABASE_PATH}
+    replicas:
+      - type: s3
+        bucket: ${LITESTREAM_S3_BUCKET}
+        # Key prefix within the bucket — keeps this DB's data self-contained so
+        # one bucket can hold replicas for several apps.
+        path: amaco-glazes-shop/shop.db
+        region: ${LITESTREAM_S3_REGION}
+
+        # How long to keep replicated data. A full snapshot is taken every
+        # snapshot-interval; older snapshots and their WAL are pruned past
+        # retention, so point-in-time restore is possible anywhere in this window.
+        retention: 168h          # 7 days
+        snapshot-interval: 24h
+        # sync-interval defaults to 1s — writes reach S3 within a second.

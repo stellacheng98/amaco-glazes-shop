@@ -350,6 +350,20 @@ directly (`node scripts/stock.js C-05 out`) doesn't need it.
 
 **3a. Give `shop.db` a persistent disk.** The catalog *and* orders now live in `shop.db`. Many PaaS hosts have an ephemeral filesystem that is wiped on every redeploy — mount a persistent volume for the database file (set `DATABASE_PATH` to a path on it), or the shop loses its orders and re-seeds from scratch on each deploy.
 
+**3b. Back the database up to S3 with Litestream (recommended).** A single file on one disk is one hardware failure away from gone. [Litestream](https://litestream.io/) streams every write to S3, so you can restore to within a second of the last write. Config is in [`litestream.yml`](litestream.yml); the entrypoint is [`scripts/start-with-litestream.sh`](scripts/start-with-litestream.sh).
+
+1. **Install the binary** on the server ([releases](https://github.com/benbjohnson/litestream/releases), or `brew install litestream` locally to try it).
+2. **Create an S3 bucket** and set `LITESTREAM_S3_BUCKET` and `LITESTREAM_S3_REGION`. On EC2/Lightsail, attach an **IAM role** with `s3:GetObject`, `s3:PutObject`, `s3:ListBucket`, and `s3:DeleteObject` on that bucket — no keys needed. Off-AWS, set `LITESTREAM_ACCESS_KEY_ID` / `LITESTREAM_SECRET_ACCESS_KEY` instead.
+3. **Start via Litestream** instead of `npm start`:
+
+   ```bash
+   npm run start:replicated
+   ```
+
+   On a fresh instance this restores `shop.db` from S3 (if a replica exists), then runs the app and replicates continuously. `DATABASE_PATH` must match between the app and `litestream.yml` — both read the same env var.
+
+> This works because the shop is **single-instance** — one process owns the file. Litestream is a backup/restore layer, not a way to run two app instances against one database; if you need that, move to Postgres (see [ROADMAP.md](ROADMAP.md)). Also point `DATABASE_PATH` at **real block storage** (EBS), never an NFS/EFS mount — SQLite's locking isn't safe over network filesystems.
+
 **4. Register the webhook.** In **Dashboard → Developers → Webhooks**, add an endpoint at `https://your-domain.com/webhook` subscribed to `checkout.session.completed`. Copy its signing secret into `STRIPE_WEBHOOK_SECRET` and redeploy.
 
 **5. Serve over HTTPS.** Stripe redirects back to `PUBLIC_URL`, and sending customers to a plain-HTTP checkout return is unacceptable. Most hosts terminate TLS for you.
@@ -359,6 +373,7 @@ directly (`node scripts/stock.js C-05 out`) doesn't need it.
 - [ ] Live keys set, and `.env` is **not** committed (it's gitignored)
 - [ ] `shop.db` seeded and priced against the live key (`npm run sync-catalog`)
 - [ ] `shop.db` on a persistent disk (`DATABASE_PATH`), not an ephemeral one
+- [ ] Litestream replicating to S3 (`npm run start:replicated`), and a restore test passed
 - [ ] Webhook endpoint registered and its signing secret set
 - [ ] `PUBLIC_URL` matches the real domain, over HTTPS
 - [ ] A real test purchase completed and confirmed in the Stripe Dashboard
@@ -367,7 +382,7 @@ directly (`node scripts/stock.js C-05 out`) doesn't need it.
 
 Worth understanding before taking real money:
 
-- **`shop.db` is single-process SQLite.** Fine for low volume on one server, but a single file — it won't survive a host with an ephemeral filesystem (most PaaS hosts wipe it on redeploy) unless it's on a persistent disk, and it won't scale past one node. Move to a client/server database (e.g. Postgres) before serious traffic; `db.js` is the only file that talks to the store.
+- **`shop.db` is single-process SQLite.** Fine for low volume on one server, but a single file: it needs a persistent disk to survive redeploys (see deploy step 3a), and it won't scale past one node. [Litestream](https://litestream.io/) (step 3b) covers durability by streaming to S3, but not concurrency — for multiple app instances, move to a client/server database (e.g. Postgres) before serious traffic. `db.js` is the only file that talks to the store, so that swap is contained.
 - **No inventory enforcement yet.** `in_stock` is checked at checkout, but nothing decrements on purchase, so the same jar can be sold twice. Real stock tracking is [Phase 3 on the roadmap](ROADMAP.md#-phase-3--admin--real-inventory-planned).
 - **No shipping or tax.** Checkout charges for glazes only. Enable Stripe Tax and shipping rates on the Checkout Session if you need them.
 - **The cart is in-memory** and clears on reload.
