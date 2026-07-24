@@ -6,9 +6,12 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
+    "seed": "node scripts/seed-db.js",
+    "stock": "node scripts/stock.js",
     "sync-catalog": "node scripts/sync-catalog.js"
   },
   "dependencies": {
+    "better-sqlite3": "^13.0.1",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "stripe": "^17.5.0"
