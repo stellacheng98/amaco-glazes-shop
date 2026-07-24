@@ -58,7 +58,7 @@ npm start
 
 Open **http://localhost:4242**.
 
-On first start the server seeds `shop.db` from `public/products.js` (101 glazes) and serves the catalog from the database — no Stripe account needed to browse.
+On first start the server seeds `shop.db` from `public/products.js` (84 glazes) and serves the catalog from the database — no Stripe account needed to browse.
 
 With no `STRIPE_SECRET_KEY` (or nothing priced in Stripe yet), the server starts in **browse-only mode**. It prints what's missing and serves the full site; only checkout is disabled, and clicking **Checkout** shows "Checkout isn't set up on this server yet" rather than failing obscurely.
 
@@ -95,7 +95,7 @@ See [Stripe keys](#stripe-keys) below for which key does what and where each bel
 npm run sync-catalog
 ```
 
-This creates a Stripe Product and Price for each of the 101 glazes and records the resulting IDs on each product row in the database. (It seeds the database first if it's empty, so this works on a clean checkout.) It's safe to re-run: already-priced glazes are skipped, and a glaze whose price changed gets a new Price attached as its default.
+This creates a Stripe Product and Price for each of the 84 glazes and records the resulting IDs on each product row in the database. (It seeds the database first if it's empty, so this works on a clean checkout.) It's safe to re-run: already-priced glazes are skipped, and a glaze whose price changed gets a new Price attached as its default.
 
 Run it again whenever you add glazes or change prices.
 
@@ -120,7 +120,7 @@ Visit http://localhost:4242. On startup the server confirms checkout is live:
 ```
   Sample Glaze Co. running at http://localhost:4242
 
-  Checkout enabled · 101 glazes priced in Stripe
+  Checkout enabled · 84 glazes priced in Stripe
 ```
 
 If it says *browse-only* instead, it will name what's still missing.
@@ -158,7 +158,7 @@ You want to see:
 ```
   Sample Glaze Co. running at http://localhost:4242
 
-  Checkout enabled · 101 glazes priced in Stripe
+  Checkout enabled · 84 glazes priced in Stripe
 ```
 
 If it says **browse-only** instead, check two things:
