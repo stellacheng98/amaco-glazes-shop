@@ -350,6 +350,20 @@ directly (`node scripts/stock.js C-05 out`) doesn't need it.
 
 **3a. Give `shop.db` a persistent disk.** The catalog *and* orders now live in `shop.db`. Many PaaS hosts have an ephemeral filesystem that is wiped on every redeploy — mount a persistent volume for the database file (set `DATABASE_PATH` to a path on it), or the shop loses its orders and re-seeds from scratch on each deploy.
 
+**3b. Back the database up to S3 with Litestream (recommended).** A single file on one disk is one hardware failure away from gone. [Litestream](https://litestream.io/) streams every write to S3, so you can restore to within a second of the last write. Config is in [`litestream.yml`](litestream.yml); the entrypoint is [`scripts/start-with-litestream.sh`](scripts/start-with-litestream.sh).
+
+1. **Install the binary** on the server ([releases](https://github.com/benbjohnson/litestream/releases), or `brew install litestream` locally to try it).
+2. **Create an S3 bucket** and set `LITESTREAM_S3_BUCKET` and `LITESTREAM_S3_REGION`. On EC2/Lightsail, attach an **IAM role** with `s3:GetObject`, `s3:PutObject`, `s3:ListBucket`, and `s3:DeleteObject` on that bucket — no keys needed. Off-AWS, set `LITESTREAM_ACCESS_KEY_ID` / `LITESTREAM_SECRET_ACCESS_KEY` instead.
+3. **Start via Litestream** instead of `npm start`:
+
+   ```bash
+   npm run start:replicated
+   ```
+
+   On a fresh instance this restores `shop.db` from S3 (if a replica exists), then runs the app and replicates continuously. `DATABASE_PATH` must match between the app and `litestream.yml` — both read the same env var.
+
+> This works because the shop is **single-instance** — one process owns the file. Litestream is a backup/restore layer, not a way to run two app instances against one database; if you need that, move to Postgres (see [ROADMAP.md](ROADMAP.md)). Also point `DATABASE_PATH` at **real block storage** (EBS), never an NFS/EFS mount — SQLite's locking isn't safe over network filesystems.
+
 **4. Register the webhook.** In **Dashboard → Developers → Webhooks**, add an endpoint at `https://your-domain.com/webhook` subscribed to `checkout.session.completed`. Copy its signing secret into `STRIPE_WEBHOOK_SECRET` and redeploy.
 
 **5. Serve over HTTPS.** Stripe redirects back to `PUBLIC_URL`, and sending customers to a plain-HTTP checkout return is unacceptable. Most hosts terminate TLS for you.
@@ -359,15 +373,154 @@ directly (`node scripts/stock.js C-05 out`) doesn't need it.
 - [ ] Live keys set, and `.env` is **not** committed (it's gitignored)
 - [ ] `shop.db` seeded and priced against the live key (`npm run sync-catalog`)
 - [ ] `shop.db` on a persistent disk (`DATABASE_PATH`), not an ephemeral one
+- [ ] Litestream replicating to S3 (`npm run start:replicated`), and a restore test passed
 - [ ] Webhook endpoint registered and its signing secret set
 - [ ] `PUBLIC_URL` matches the real domain, over HTTPS
 - [ ] A real test purchase completed and confirmed in the Stripe Dashboard
+
+### Full walkthrough — AWS (Lightsail or EC2)
+
+A concrete single-instance runbook. **Lightsail** is the simplest path; **EC2** is
+identical except where noted. Everything runs on one small Ubuntu instance;
+commands assume the default `ubuntu` user.
+
+**1. Instance + persistent disk.** Launch an Ubuntu 22.04+ instance (smallest
+tier is plenty). Attach a **block-storage disk** and mount it at `/data` — the
+database lives there so it survives instance replacement. Check the device name
+with `lsblk`, then (first time only):
+
+```bash
+sudo mkfs -t ext4 /dev/xvdf          # ONLY on a fresh, empty disk — this erases it
+sudo mkdir -p /data
+echo '/dev/xvdf /data ext4 defaults,nofail 0 2' | sudo tee -a /etc/fstab
+sudo mount -a && sudo chown ubuntu /data
+```
+
+**2. Install Node 20+ and Litestream.**
+
+```bash
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs build-essential python3   # build tools for native modules
+curl -L https://github.com/benbjohnson/litestream/releases/latest/download/litestream-linux-amd64.deb -o /tmp/ls.deb
+sudo dpkg -i /tmp/ls.deb              # use the arm64 asset on Graviton/arm instances
+```
+
+**3. Get the code.**
+
+```bash
+git clone https://github.com/stellacheng98/amaco-glazes-shop.git
+cd amaco-glazes-shop
+npm ci --omit=dev
+```
+
+**4. S3 bucket + credentials.** Create a private bucket in the **same region** as
+the instance, then grant access to `s3:GetObject`, `s3:PutObject`, `s3:ListBucket`,
+and `s3:DeleteObject` on it:
+
+- **EC2:** attach an IAM **instance role** with that policy — no keys on disk.
+- **Lightsail:** Lightsail instances can't assume IAM roles, so create an IAM
+  **user** with the same policy and set `LITESTREAM_ACCESS_KEY_ID` /
+  `LITESTREAM_SECRET_ACCESS_KEY` in `.env` (next step).
+
+**5. Configure `.env`.**
+
+```bash
+cp .env.example .env && nano .env
+```
+
+```bash
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...        # filled in at step 9
+PUBLIC_URL=https://shop.example.com
+DATABASE_PATH=/data/shop.db
+LITESTREAM_S3_BUCKET=your-bucket
+LITESTREAM_S3_REGION=us-east-1
+# Lightsail only:
+# LITESTREAM_ACCESS_KEY_ID=...
+# LITESTREAM_SECRET_ACCESS_KEY=...
+```
+
+**6. Seed the live catalog in Stripe.**
+
+```bash
+set -a && . ./.env && set +a          # load .env into this shell
+npm run sync-catalog                  # creates live Products/Prices in /data/shop.db
+```
+
+**7. Run it as a service (systemd).** Create `/etc/systemd/system/glaze-shop.service`:
+
+```ini
+[Unit]
+Description=Sample Glaze Co.
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/amaco-glazes-shop
+EnvironmentFile=/home/ubuntu/amaco-glazes-shop/.env
+ExecStart=/usr/bin/npm run start:replicated
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now glaze-shop
+sudo systemctl status glaze-shop      # should be "active (running)"
+```
+
+On start it restores `shop.db` from S3 if `/data` is empty, then replicates every
+write. The app listens on `localhost:4242`.
+
+**8. HTTPS + domain.** Put a TLS-terminating reverse proxy in front. **Caddy** does
+automatic HTTPS in two lines — install it, then `/etc/caddy/Caddyfile`:
+
+```
+shop.example.com {
+    reverse_proxy localhost:4242
+}
+```
+
+```bash
+sudo systemctl reload caddy
+```
+
+Point the domain's DNS at the instance's static IP, and open ports **80/443** in
+the firewall (keep 4242 internal). `PUBLIC_URL` must be the `https://` domain, or
+Stripe sends paying customers to a dead return URL.
+
+**9. Register the Stripe webhook.** Dashboard → Developers → Webhooks → add
+`https://shop.example.com/webhook` for `checkout.session.completed`. Put its
+signing secret in `.env` as `STRIPE_WEBHOOK_SECRET`, then
+`sudo systemctl restart glaze-shop`.
+
+**10. Verify — including the backup.**
+
+```bash
+curl https://shop.example.com/api/products | head            # catalog serves
+# after a test purchase:
+sqlite3 /data/shop.db "SELECT stripe_session_id, email FROM orders;"
+
+# Restore drill — proves the S3 backup actually works:
+sudo systemctl stop glaze-shop
+mv /data/shop.db /data/shop.db.bak
+set -a && . ./.env && set +a
+litestream restore -config litestream.yml "$DATABASE_PATH"
+sudo systemctl start glaze-shop                              # orders should still be there
+```
+
+Don't consider the deploy done until the restore drill passes — an untested
+backup is not a backup.
 
 ## Known limitations
 
 Worth understanding before taking real money:
 
-- **`shop.db` is single-process SQLite.** Fine for low volume on one server, but a single file — it won't survive a host with an ephemeral filesystem (most PaaS hosts wipe it on redeploy) unless it's on a persistent disk, and it won't scale past one node. Move to a client/server database (e.g. Postgres) before serious traffic; `db.js` is the only file that talks to the store.
+- **`shop.db` is single-process SQLite.** Fine for low volume on one server, but a single file: it needs a persistent disk to survive redeploys (see deploy step 3a), and it won't scale past one node. [Litestream](https://litestream.io/) (step 3b) covers durability by streaming to S3, but not concurrency — for multiple app instances, move to a client/server database (e.g. Postgres) before serious traffic. `db.js` is the only file that talks to the store, so that swap is contained.
 - **No inventory enforcement yet.** `in_stock` is checked at checkout, but nothing decrements on purchase, so the same jar can be sold twice. Real stock tracking is [Phase 3 on the roadmap](ROADMAP.md#-phase-3--admin--real-inventory-planned).
 - **No shipping or tax.** Checkout charges for glazes only. Enable Stripe Tax and shipping rates on the Checkout Session if you need them.
 - **The cart is in-memory** and clears on reload.
