@@ -380,6 +380,8 @@ directly (`node scripts/stock.js C-05 out`) doesn't need it.
 
 ### Full walkthrough — AWS (Lightsail or EC2)
 
+> For a complete **two-environment (test + prod)** setup on Lightsail with **Secrets Manager** for the Stripe keys and per-environment S3 backups, follow [`docs/aws-setup.md`](docs/aws-setup.md). The section below is the condensed single-instance version.
+
 A concrete single-instance runbook. **Lightsail** is the simplest path; **EC2** is
 identical except where noted. Everything runs on one small Ubuntu instance;
 commands assume the default `ubuntu` user.
