@@ -40,13 +40,22 @@ fi
 # resolve the real download URL from the GitHub API rather than guessing a fixed
 # "latest/download" path (which 404s). jq was installed above.
 if ! command -v litestream >/dev/null; then
+  # Litestream spells amd64 as "x86_64" in its asset names.
   case "$(uname -m)" in
+    x86_64)        LS_ARCH=x86_64 ;;
     aarch64|arm64) LS_ARCH=arm64 ;;
-    *)             LS_ARCH=amd64 ;;
+    armv7l)        LS_ARCH=armv7 ;;
+    *)             LS_ARCH=x86_64 ;;
   esac
   LS_URL="$(curl -fsSL https://api.github.com/repos/benbjohnson/litestream/releases/latest \
     | jq -r --arg a "linux-${LS_ARCH}.deb" '.assets[] | select(.name|endswith($a)) | .browser_download_url' | head -1)"
-  [ -n "$LS_URL" ] || { echo "Could not find a Litestream .deb for linux-${LS_ARCH}." >&2; exit 1; }
+  # Fall back to a pinned release if the API is unreachable or rate-limited
+  # (unauthenticated GitHub API is 60 req/hr per IP).
+  if [ -z "$LS_URL" ]; then
+    LS_VER=0.5.15
+    LS_URL="https://github.com/benbjohnson/litestream/releases/download/v${LS_VER}/litestream-${LS_VER}-linux-${LS_ARCH}.deb"
+    echo "· GitHub API returned no asset (rate limit?) — falling back to litestream ${LS_VER}"
+  fi
   curl -fL "$LS_URL" -o /tmp/ls.deb
   sudo dpkg -i /tmp/ls.deb
 fi
