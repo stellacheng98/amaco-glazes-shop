@@ -190,7 +190,7 @@ Open the instance's **browser SSH** (or use your own key), then:
 ```bash
 # System packages
 sudo apt-get update
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
 sudo apt-get install -y nodejs build-essential python3 jq unzip caddy
 
 # AWS CLI v2
