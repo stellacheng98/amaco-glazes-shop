@@ -14,13 +14,14 @@ export function findOrderBySessionId(sessionId) {
 const upsertInsert = db.prepare(
   `INSERT INTO orders
      (stripe_session_id, payment_intent_id, customer_id, email,
-      amount_total, currency, payment_status, glazes, created_at)
-   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      amount_total, currency, payment_status, fulfillment_status, glazes, created_at)
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 );
 const upsertUpdate = db.prepare(
   `UPDATE orders SET
      payment_intent_id = ?, customer_id = ?, email = ?, amount_total = ?,
-     currency = ?, payment_status = ?, glazes = ?,
+     currency = ?, payment_status = ?,
+     fulfillment_status = COALESCE(?, fulfillment_status), glazes = ?,
      created_at = COALESCE(?, created_at)
    WHERE stripe_session_id = ?`
 );
@@ -46,6 +47,7 @@ export const recordOrder = db.transaction(order => {
       order.amountTotal ?? null,
       order.currency ?? null,
       order.paymentStatus ?? null,
+      order.fulfillmentStatus ?? null,
       order.glazes ?? null,
       order.createdAt ?? null,
       order.sessionId
@@ -60,6 +62,7 @@ export const recordOrder = db.transaction(order => {
       order.amountTotal ?? null,
       order.currency ?? null,
       order.paymentStatus ?? null,
+      order.fulfillmentStatus ?? "pending",
       order.glazes ?? null,
       order.createdAt ?? null
     );

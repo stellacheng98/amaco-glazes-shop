@@ -43,6 +43,17 @@ else if (countPricedProducts() === 0) missingSetup.push("no glazes are priced in
 const checkoutEnabled = missingSetup.length === 0;
 
 // ── Webhook ───────────────────────────────────────────────────────────
+// All three carry a Checkout Session as event.data.object. `completed` and
+// `async_payment_succeeded` land a fulfillable order; `async_payment_failed`
+// records it but marks it canceled so nothing ships against money that never
+// arrived. With cards pinned on the session, only `completed` fires today — the
+// async pair is a standing safety net for any future non-card method.
+const CHECKOUT_EVENTS = new Set([
+  "checkout.session.completed",
+  "checkout.session.async_payment_succeeded",
+  "checkout.session.async_payment_failed",
+]);
+
 // Registered before express.json() because signature verification needs the
 // raw, unparsed request body.
 app.post("/webhook", express.raw({ type: "application/json" }), (req, res) => {
@@ -67,8 +78,9 @@ app.post("/webhook", express.raw({ type: "application/json" }), (req, res) => {
     event = JSON.parse(req.body);
   }
 
-  if (event.type === "checkout.session.completed") {
+  if (CHECKOUT_EVENTS.has(event.type)) {
     const session = event.data?.object ?? {};
+    const failed = event.type === "checkout.session.async_payment_failed";
     try {
       recordOrder({
         sessionId: session.id,
@@ -78,12 +90,17 @@ app.post("/webhook", express.raw({ type: "application/json" }), (req, res) => {
         amountTotal: session.amount_total ?? null,
         currency: session.currency ?? null,
         paymentStatus: session.payment_status ?? null,
+        // Stripe leaves payment_status "unpaid" on a failed async payment, which
+        // is indistinguishable from one still settling — so flag fulfillment
+        // explicitly. null on the happy path leaves the existing status intact.
+        fulfillmentStatus: failed ? "canceled" : null,
         glazes: session.metadata?.glazes ?? "",
         createdAt: Number.isFinite(session.created)
           ? new Date(session.created * 1000).toISOString()
           : null,
       });
-      console.log(`Order confirmed: ${session.id} (${session.customer_details?.email ?? "no email"})`);
+      const label = failed ? "Payment failed" : "Order confirmed";
+      console.log(`${label}: ${session.id} (${session.customer_details?.email ?? "no email"})`);
     } catch (err) {
       // Returning 5xx makes Stripe retry, which is what we want for a transient
       // write failure — but not for a payload we will never be able to store.
@@ -146,6 +163,13 @@ app.post("/create-checkout-session", async (req, res) => {
 
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
+      // Cards only, on purpose. Card payments settle synchronously, so
+      // `checkout.session.completed` always arrives already `paid` and an order
+      // is never recorded before the money has. Enabling an async method (ACH,
+      // bank debit, Link-with-delayed-settlement) is then a deliberate choice
+      // here, not something a dashboard toggle can turn on behind the code's
+      // back — and the webhook's async handlers are ready if that day comes.
+      payment_method_types: ["card"],
       line_items: lineItems,
       success_url: `${publicUrl}/success.html?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${publicUrl}/index.html`,
