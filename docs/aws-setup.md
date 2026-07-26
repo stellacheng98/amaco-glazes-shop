@@ -12,6 +12,54 @@ Everything is duplicated per environment, differing mainly in **names** and in *
 
 ---
 
+## Scripted path (recommended)
+
+Two scripts automate the whole runbook. The manual steps below still document
+exactly what they do — read them if a step fails or you want to understand a
+resource.
+
+1. **Provision the AWS resources** (from your laptop, with an admin awscli profile):
+
+   ```bash
+   ./scripts/aws/provision-env.sh test
+   ```
+
+   Creates the S3 bucket, Secrets Manager secret (placeholder), scoped IAM user +
+   key, and the Lightsail instance + static IP + disk + firewall. It writes
+   `./glaze-shop-test.env` (gitignored — holds the bootstrap key) and prints the
+   next commands. Re-runnable; it skips anything that already exists.
+
+2. **Set the real Stripe key** in the secret (the script prints the exact command):
+
+   ```bash
+   aws secretsmanager put-secret-value --secret-id glaze-shop/test --region us-east-1 \
+     --secret-string '{"STRIPE_SECRET_KEY":"sk_test_...","STRIPE_WEBHOOK_SECRET":"REPLACE_ME"}'
+   ```
+
+3. **Bootstrap the instance** — copy the env file over and run the bootstrap
+   (the provision output gives you the filled-in `scp`/`ssh` lines):
+
+   ```bash
+   scp -i lightsail-us-east-1.pem glaze-shop-test.env ubuntu@<ip>:/tmp/glaze-shop.env
+   ssh -i lightsail-us-east-1.pem ubuntu@<ip> \
+     'curl -fsSL https://raw.githubusercontent.com/stellacheng98/amaco-glazes-shop/main/scripts/aws/bootstrap-instance.sh | bash'
+   ```
+
+   `bootstrap-instance.sh` installs everything, mounts the disk (never
+   reformatting one that has data), clones the app, writes the systemd + Caddy
+   config, seeds the catalog, and starts the service.
+
+4. **Register the Stripe webhook** at `<PUBLIC_URL>/webhook`, put its `whsec_…`
+   into the secret as `STRIPE_WEBHOOK_SECRET`, and `sudo systemctl restart
+   glaze-shop`. Then run the **restore drill** (step 10) to prove the backup.
+
+Repeat with `prod` (and live Stripe keys) once test checks out.
+
+> The bootstrap script is fetched from `main`, so merge this branch (or point the
+> URL at your branch) before running it on a box.
+
+---
+
 ## 0. Before you start
 
 - An AWS account with console access.
