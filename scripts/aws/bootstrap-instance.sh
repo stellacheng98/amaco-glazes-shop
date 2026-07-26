@@ -36,13 +36,18 @@ if ! command -v aws >/dev/null; then
   ( cd /tmp && unzip -oq awscliv2.zip && sudo ./aws/install --update )
 fi
 
-# Litestream (pick arch)
+# Litestream (pick arch). The .deb asset name includes the release version, so
+# resolve the real download URL from the GitHub API rather than guessing a fixed
+# "latest/download" path (which 404s). jq was installed above.
 if ! command -v litestream >/dev/null; then
   case "$(uname -m)" in
     aarch64|arm64) LS_ARCH=arm64 ;;
     *)             LS_ARCH=amd64 ;;
   esac
-  curl -L "https://github.com/benbjohnson/litestream/releases/latest/download/litestream-linux-${LS_ARCH}.deb" -o /tmp/ls.deb
+  LS_URL="$(curl -fsSL https://api.github.com/repos/benbjohnson/litestream/releases/latest \
+    | jq -r --arg a "linux-${LS_ARCH}.deb" '.assets[] | select(.name|endswith($a)) | .browser_download_url' | head -1)"
+  [ -n "$LS_URL" ] || { echo "Could not find a Litestream .deb for linux-${LS_ARCH}." >&2; exit 1; }
+  curl -fL "$LS_URL" -o /tmp/ls.deb
   sudo dpkg -i /tmp/ls.deb
 fi
 

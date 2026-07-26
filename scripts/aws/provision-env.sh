@@ -230,9 +230,10 @@ Done provisioning "$ENV".
      --secret-string '{"STRIPE_SECRET_KEY":"sk_...","STRIPE_WEBHOOK_SECRET":"REPLACE_ME"}'
    (Set STRIPE_WEBHOOK_SECRET later, after registering the webhook at $PUBLIC_URL/webhook.)
 
-2. Get the SSH key for this region (once):
+2. Get the SSH key for this region (once). The privateKeyBase64 field is already
+   PEM text, so write it straight to the file — do NOT base64-decode it:
    aws lightsail download-default-key-pair --region $REGION \\
-     --query privateKeyBase64 --output text | base64 --decode > lightsail-$REGION.pem
+     --query privateKeyBase64 --output text > lightsail-$REGION.pem
    chmod 600 lightsail-$REGION.pem
 
 3. Copy the env file and bootstrap the instance:
