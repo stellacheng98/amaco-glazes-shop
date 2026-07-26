@@ -38,7 +38,7 @@ Prices here are for display only — checkout re-prices every line from the data
 
 ## Prerequisites
 
-- Node.js 20+ — the only requirement for browsing the shop locally (required by `better-sqlite3`)
+- Node.js 22+ — the only requirement for browsing the shop locally (`better-sqlite3@13` requires Node ≥ 22)
 
 For checkout, additionally:
 
@@ -398,10 +398,10 @@ echo '/dev/xvdf /data ext4 defaults,nofail 0 2' | sudo tee -a /etc/fstab
 sudo mount -a && sudo chown ubuntu /data
 ```
 
-**2. Install Node 20+ and Litestream.**
+**2. Install Node 22+ and Litestream.**
 
 ```bash
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
 sudo apt-get install -y nodejs build-essential python3   # build tools for native modules
 curl -L https://github.com/benbjohnson/litestream/releases/latest/download/litestream-linux-amd64.deb -o /tmp/ls.deb
 sudo dpkg -i /tmp/ls.deb              # use the arm64 asset on Graviton/arm instances

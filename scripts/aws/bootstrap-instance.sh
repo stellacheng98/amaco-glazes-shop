@@ -27,7 +27,7 @@ DATA_DEVICE="${DATA_DEVICE:-/dev/xvdf}"
 
 echo "── Installing packages ──────────────────────────────────────────"
 sudo apt-get update -y
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
 sudo apt-get install -y nodejs build-essential python3 jq unzip git
 
 # AWS CLI v2 (skip if already present)
