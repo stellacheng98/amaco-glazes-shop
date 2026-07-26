@@ -191,6 +191,19 @@ aws lightsail open-instance-public-ports --instance-name "$NAME" --region "$REGI
   --port-info fromPort=443,toPort=443,protocol=TCP >/dev/null 2>&1 || true
 echo "· opened ports 80, 443"
 
+# SSH (22): restrict to SSH_CIDR if given, else leave at the Lightsail default
+# (open to the world, key-only). Pass SSH_CIDR=auto to lock it to your current IP.
+if [ -n "${SSH_CIDR:-}" ]; then
+  if [ "$SSH_CIDR" = "auto" ]; then
+    SSH_CIDR="$(curl -fsS https://checkip.amazonaws.com 2>/dev/null | tr -d '[:space:]')/32"
+  fi
+  aws lightsail open-instance-public-ports --instance-name "$NAME" --region "$REGION" \
+    --port-info "fromPort=22,toPort=22,protocol=TCP,cidrs=${SSH_CIDR}" >/dev/null 2>&1 || true
+  echo "· SSH (22) restricted to ${SSH_CIDR}"
+else
+  echo "· SSH (22) left open to 0.0.0.0/0 (Lightsail default). Set SSH_CIDR=auto or x.x.x.x/32 to restrict."
+fi
+
 # ── Hostname / PUBLIC_URL ─────────────────────────────────────────────
 HOSTNAME_DEFAULT="$(printf '%s' "$STATIC_IP" | tr '.' '-').sslip.io"
 HOST="${DOMAIN:-$HOSTNAME_DEFAULT}"
@@ -214,6 +227,12 @@ LITESTREAM_S3_REGION=$REGION
 DATABASE_PATH=/data/shop.db
 PUBLIC_URL=$PUBLIC_URL
 PORT=4242
+
+# Optional site password (Caddy basic-auth) — protects everything except /webhook.
+# Generate the hash on the instance:  caddy hash-password
+# Keep the hash SINGLE-QUOTED (it contains \$). Uncomment both to enable:
+# BASIC_AUTH_USER=admin
+# BASIC_AUTH_HASH='REPLACE_WITH_caddy_hash-password_OUTPUT'
 ENVOUT
   echo "· wrote $ENV_FILE"
 else

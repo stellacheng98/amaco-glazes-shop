@@ -342,6 +342,39 @@ sudo systemctl start glaze-shop                               # orders should st
 
 ---
 
+## Restricting access before launch
+
+By default 80/443 are open to the world (as a storefront should be) and SSH (22)
+is open key-only. To keep a not-yet-ready environment private:
+
+**Password-protect the site (Caddy basic-auth).** Preferred over a firewall rule,
+which would also block Stripe's webhook and Let's Encrypt renewals. `/webhook`
+stays open so Stripe still works.
+
+1. Generate a hash on the instance: `ssh … 'caddy hash-password'` (type a password; copy the `$2a$…` hash).
+2. Add to the env file — **single-quote the hash** (it contains `$`), in both `/etc/glaze-shop.env` on the box and your local `glaze-shop-<env>.env` so it survives redeploys:
+
+   ```bash
+   BASIC_AUTH_USER=admin
+   BASIC_AUTH_HASH='$2a$14$...'
+   ```
+3. Apply: `sudo systemctl restart glaze-shop` isn't enough (that's the app, not Caddy) — re-run `bootstrap-instance.sh` (it rewrites the Caddyfile from these vars), or edit `/etc/caddy/Caddyfile` by hand and `sudo systemctl reload caddy`.
+
+Verify: `curl -sI https://<host>/` → **401**; `curl -sI -u admin:PASS https://<host>/` → **200**; `curl -sI -X POST https://<host>/webhook` → **not** 401.
+
+**Restrict SSH to your IP.** At provision time pass `SSH_CIDR=auto` (locks 22 to
+your current public IP) or `SSH_CIDR=1.2.3.4/32`. For a running instance:
+
+```bash
+aws lightsail open-instance-public-ports --instance-name glaze-shop-test --region us-east-1 \
+  --port-info "fromPort=22,toPort=22,protocol=TCP,cidrs=$(curl -fsS https://checkip.amazonaws.com)/32"
+```
+
+⚠️ If your ISP changes your IP you'll lock yourself out of SSH — fix it in the
+Lightsail console (Networking → IPv4 Firewall) or re-open 22 from there.
+
+---
+
 ## 11. Repeat for prod
 
 Redo steps 1–10 with the **prod** names from the inventory table and:
