@@ -119,11 +119,21 @@ WantedBy=multi-user.target
 UNIT
 
 echo "── Caddy (automatic HTTPS for $HOST) ────────────────────────────"
-sudo tee /etc/caddy/Caddyfile >/dev/null <<CADDY
-$HOST {
-    reverse_proxy localhost:4242
-}
-CADDY
+# Optional site password (Caddy basic-auth), enabled when BASIC_AUTH_USER and
+# BASIC_AUTH_HASH are set in the env file. /webhook is left open so Stripe can
+# still POST to it. Built with printf so the bcrypt hash's `$`s aren't expanded.
+{
+  printf '%s {\n' "$HOST"
+  if [ -n "${BASIC_AUTH_USER:-}" ] && [ -n "${BASIC_AUTH_HASH:-}" ]; then
+    echo "· basic-auth enabled for user '$BASIC_AUTH_USER' (all paths except /webhook)"
+    printf '    @needs_auth not path /webhook\n'
+    printf '    basic_auth @needs_auth {\n'
+    printf '        %s %s\n' "$BASIC_AUTH_USER" "$BASIC_AUTH_HASH"
+    printf '    }\n'
+  fi
+  printf '    reverse_proxy localhost:4242\n'
+  printf '}\n'
+} | sudo tee /etc/caddy/Caddyfile >/dev/null
 sudo systemctl reload caddy || sudo systemctl restart caddy
 
 echo "── Seeding catalog (if the Stripe key is set) ───────────────────"
