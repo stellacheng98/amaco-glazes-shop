@@ -116,7 +116,13 @@ ssh -i "$KEY" "$HOST" 'sudo systemctl restart glaze-shop'
 
 ## Stripe webhook
 
-- Endpoint: `https://<host>/webhook`, event `checkout.session.completed`, in the **same** sandbox/live mode as the keys.
+- Endpoint: `https://<host>/webhook`, in the **same** sandbox/live mode as the keys.
+- Subscribe the endpoint to **all three** checkout events:
+  - `checkout.session.completed` — records the order (the only one card payments ever fire).
+  - `checkout.session.async_payment_succeeded` — a delayed payment (ACH / bank debit) finally cleared; promotes the order to paid.
+  - `checkout.session.async_payment_failed` — a delayed payment bounced; marks the order `canceled` so it isn't fulfilled.
+
+  The async pair stays dormant while checkout is card-only, but **Stripe only delivers events you've subscribed to** — add all three now so they already work the day a non-card method is enabled.
 - Opening `/webhook` in a browser shows `Cannot GET /webhook` — that's correct; it's POST-only.
 - Check deliveries: **Stripe → Developers → Webhooks → endpoint → Recent deliveries**.
   - **400** = signature mismatch → fix `STRIPE_WEBHOOK_SECRET` in the secret + restart, then **Resend** the event.
