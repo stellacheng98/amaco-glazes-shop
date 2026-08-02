@@ -192,6 +192,54 @@ ssh -i "$KEY" "$HOST" 'cd amaco-glazes-shop && git pull --ff-only && npm ci --om
 
 ---
 
+## restrict-ip-while-testing
+
+The site is normally firewall-locked to your IP (so it's private pre-launch). But
+while locked, **Stripe's webhook is blocked** — Stripe POSTs from its own IPs, not
+yours — so orders won't record. To test the real order flow, briefly open the
+site, test, then re-lock. (The Stripe checkout page itself is on
+`checkout.stripe.com` and always works; only *your* server is gated.)
+
+```bash
+INSTANCE=glaze-shop-test        # or glaze-shop-prod
+REGION=us-east-1
+```
+
+**1. Open the site to the public** (leave SSH locked to you):
+```bash
+aws lightsail open-instance-public-ports --instance-name $INSTANCE --region $REGION \
+  --port-info fromPort=443,toPort=443,protocol=TCP,cidrs=0.0.0.0/0
+aws lightsail open-instance-public-ports --instance-name $INSTANCE --region $REGION \
+  --port-info fromPort=80,toPort=80,protocol=TCP,cidrs=0.0.0.0/0
+```
+
+**2. Test.** Buy a glaze with card `4242 4242 4242 4242`, then confirm it actually
+**recorded** (not just the thank-you page, which reads Stripe directly and always
+shows "paid"):
+```bash
+ssh -i lightsail-us-east-1.pem ubuntu@<static-ip> \
+  'sqlite3 -header -column /data/shop.db "SELECT stripe_session_id, email, created_at FROM orders ORDER BY created_at DESC LIMIT 3;"'
+```
+A **new row** = the full chain works. Stripe → Webhooks → Recent deliveries should show **200**.
+
+**3. Re-lock to your current IP** when done:
+```bash
+MYIP=$(curl -fsS https://checkip.amazonaws.com)
+for p in 80 443 22; do
+  aws lightsail open-instance-public-ports --instance-name $INSTANCE --region $REGION \
+    --port-info fromPort=$p,toPort=$p,protocol=TCP,cidrs=${MYIP}/32
+done
+aws lightsail get-instance-port-states --instance-name $INSTANCE --region $REGION \
+  --query 'portStates[].{port:fromPort,ipv4:cidrs}' --output table   # verify your /32
+```
+
+- Orders only record while 443 is reachable by Stripe (i.e. open to the world) — that's the point of opening it.
+- Re-locking uses your **current** IP, so it's safe if your IP changed.
+- IPv6 stays blocked throughout (`ipv6Cidrs` stay empty) — fine, since Stripe and the `sslip.io` name are IPv4.
+- Don't leave it open longer than the test needs. A private alternative that keeps `/webhook` open is Caddy basic-auth (see [aws-setup.md → Restricting access before launch](aws-setup.md#restricting-access-before-launch)).
+
+---
+
 ## Gotchas seen during setup
 
 - **`Cannot GET /webhook`** in a browser is normal (POST-only endpoint).
