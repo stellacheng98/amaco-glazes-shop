@@ -203,12 +203,16 @@ app.post("/create-checkout-session", checkoutLimiter, async (req, res) => {
 
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
-      // Cards only, on purpose. Card payments settle synchronously, so
-      // `checkout.session.completed` always arrives already `paid` and an order
-      // is never recorded before the money has. Enabling an async method (ACH,
-      // bank debit, Link-with-delayed-settlement) is then a deliberate choice
-      // here, not something a dashboard toggle can turn on behind the code's
-      // back — and the webhook's async handlers are ready if that day comes.
+      // Card + Apple Pay only, on purpose. Apple Pay is a wallet surfaced
+      // through the `card` payment method — Stripe Checkout has no separate
+      // "apple_pay" entry for payment_method_types — so listing "card" enables
+      // both, and Apple Pay appears automatically on a supported Safari/device.
+      // Both settle synchronously, so `checkout.session.completed` always
+      // arrives already `paid` and an order is never recorded before the money
+      // has. Enabling an async method (ACH, bank debit,
+      // Link-with-delayed-settlement) stays a deliberate choice here, not a
+      // dashboard toggle flipped behind the code's back — and the webhook's
+      // async handlers are ready if that day comes.
       payment_method_types: ["card"],
       line_items: lineItems,
       success_url: `${publicUrl}/success.html?session_id={CHECKOUT_SESSION_ID}`,
@@ -263,7 +267,7 @@ app.get("/order-status", async (req, res) => {
 app.use(express.static(join(rootDir, "public"), { extensions: ["html"] }));
 
 const server = app.listen(port, () => {
-  console.log(`\n  Sample Glaze Co. running at ${publicUrl}\n`);
+  console.log(`\n  Sample Glaze running at ${publicUrl}\n`);
   if (checkoutEnabled) {
     console.log(`  Checkout enabled · ${countPricedProducts()} glazes priced in Stripe\n`);
   } else {

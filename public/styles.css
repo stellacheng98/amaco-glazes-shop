@@ -43,6 +43,19 @@ body {
 /* ══════════════════════════════════
    NAV
 ══════════════════════════════════ */
+/* Announcement banner */
+.announce {
+  background: var(--ink);
+  color: #FFF5EC;
+  text-align: center;
+  font-size: .78rem;
+  font-weight: 500;
+  line-height: 1.55;
+  letter-spacing: .01em;
+  padding: 9px 16px;
+}
+.announce strong { color: var(--butter); font-weight: 600; }
+
 .nav {
   position: sticky; top: 0; z-index: 100;
   height: var(--nav-h);
@@ -477,6 +490,9 @@ body {
 .footer-link:hover { color: var(--peach2); }
 .footer-div { width: 100%; height: 1px; background: rgba(255,245,236,.08); }
 .footer-legal { font-size: .74rem; color: #5A4535; line-height: 1.65; max-width: 480px; }
+.footer-contact { font-size: .8rem; color: var(--ink3); }
+.footer-contact a { color: var(--peach2); text-decoration: none; }
+.footer-contact a:hover { text-decoration: underline; }
 
 /* ══════════════════════════════════
    RESPONSIVE

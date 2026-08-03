@@ -2,7 +2,7 @@
   "name": "amaco-glazes-shop",
   "version": "1.0.0",
   "private": true,
-  "description": "Sample Glaze Co. — AMACO mid-high fire glaze sample shop",
+  "description": "Sample Glaze — AMACO mid-high fire glaze sample shop",
   "type": "module",
   "scripts": {
     "start": "node server.js",
