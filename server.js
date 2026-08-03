@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express from "express";
+import rateLimit from "express-rate-limit";
 import Stripe from "stripe";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -15,6 +16,13 @@ import { recordOrder, findOrderBySessionId } from "./orders.js";
 const rootDir = dirname(fileURLToPath(import.meta.url));
 const app = express();
 const port = process.env.PORT || 4242;
+
+// Behind Caddy (a loopback reverse proxy) the real visitor IP arrives in
+// X-Forwarded-For; without this every request looks like Caddy's 127.0.0.1 and
+// the rate limiters below would throttle all traffic as a single client. Trust
+// only loopback proxies, so an external client can't spoof the header to dodge a
+// limit. Harmless in local dev, where requests arrive directly.
+app.set("trust proxy", "loopback");
 
 // Public origin used to build Checkout return URLs. Behind a proxy or on a real
 // domain this must be the customer-facing URL, not the local bind address.
@@ -112,6 +120,38 @@ app.post("/webhook", express.raw({ type: "application/json" }), (req, res) => {
   res.json({ received: true });
 });
 
+// ── Rate limiting ─────────────────────────────────────────────────────
+// Two layers, both keyed per IP and mounted AFTER the webhook so Stripe's retry
+// bursts (from Stripe's own IPs) are never throttled.
+//
+// The global limiter caps request volume from any single IP. Its job is to blunt
+// scrapers/floods — the only Lightsail cost that scales with traffic is outbound
+// bandwidth, and product images are offloaded to an external CDN, so a real page
+// load only touches this server a handful of times. 200/min leaves shoppers
+// untouched while stopping a bot from hammering the box.
+const globalLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests — please slow down and try again shortly." },
+});
+app.use(globalLimiter);
+
+// Far stricter, applied only to checkout. Creating a Checkout Session is free at
+// Stripe, so this isn't about API cost — it's fraud control: automated card
+// testing turns into disputes (~$15 each) and Stripe account risk. This is the
+// cheap front layer in front of Stripe Radar; a real shopper rarely starts more
+// than a couple of checkouts, so 10 per 15 min per IP is generous for them and
+// hostile to a carding bot.
+const checkoutLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many checkout attempts. Please wait a few minutes and try again." },
+});
+
 app.use(express.json());
 
 // ── Catalog API ───────────────────────────────────────────────────────
@@ -128,7 +168,7 @@ app.get("/api/series", (_req, res) => {
 });
 
 // ── Checkout ──────────────────────────────────────────────────────────
-app.post("/create-checkout-session", async (req, res) => {
+app.post("/create-checkout-session", checkoutLimiter, async (req, res) => {
   if (!checkoutEnabled) {
     return res.status(503).json({ error: "Checkout isn't set up on this server yet." });
   }
