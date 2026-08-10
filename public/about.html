@@ -35,7 +35,10 @@
       <div class="nav-links">
         <a href="index.html" class="nav-link">Shop</a>
         <a href="about.html" class="nav-link active">About</a>
-        <a href="index.html#" class="cart-btn">Cart <span class="cart-count">0</span></a>
+        <button class="cart-btn" onclick="toggleCart()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+          Cart <span class="cart-count" id="cart-count">0</span>
+        </button>
       </div>
     </div>
   </nav>
@@ -74,6 +77,30 @@
     </div>
   </section>
 
+  <!-- CART DRAWER (shared behavior with the shop, driven by app.js) -->
+  <div class="cart-overlay" id="cart-overlay" onclick="toggleCart()"></div>
+  <aside class="cart-drawer" id="cart-drawer">
+    <div class="cart-header">
+      <h2>Your cart</h2>
+      <button class="cart-close" onclick="toggleCart()" aria-label="Close cart">✕</button>
+    </div>
+    <div class="cart-items" id="cart-items">
+      <div class="cart-empty">
+        <span class="cart-empty-icon">🏺</span>
+        Your cart is empty.
+      </div>
+    </div>
+    <div class="cart-footer" id="cart-footer" style="display:none">
+      <div class="cart-total">
+        <span>Total</span>
+        <strong id="cart-total">$0.00</strong>
+      </div>
+      <div class="checkout-error" id="checkout-error" role="alert" style="display:none"></div>
+      <button class="btn-primary full-width" id="checkout-btn" onclick="checkout()">Checkout →</button>
+      <p class="cart-note">Secure payment via Stripe · Shipping calculated at checkout</p>
+    </div>
+  </aside>
+
   <footer class="footer">
     <div class="footer-inner">
       <p class="footer-logo">🏺 Sample Glaze</p>
@@ -82,5 +109,7 @@
       <p class="footer-copy">© 2026 Sample Glaze</p>
     </div>
   </footer>
+
+  <script src="app.js"></script>
 </body>
 </html>

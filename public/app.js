@@ -182,19 +182,27 @@ function lighten(hex) {
 }
 
 // ── Filters ──
-document.getElementById("filter-chips").addEventListener("click", e => {
-  const chip = e.target.closest(".chip");
-  if (!chip) return;
-  document.querySelectorAll(".chip").forEach(c => c.classList.remove("active"));
-  chip.classList.add("active");
-  activeFilter = chip.dataset.series;
-  renderProducts();
-});
+// Guarded: these controls only exist on the shop page. app.js also runs on
+// pages that just need the cart (e.g. about), where they are absent.
+const filterChips = document.getElementById("filter-chips");
+if (filterChips) {
+  filterChips.addEventListener("click", e => {
+    const chip = e.target.closest(".chip");
+    if (!chip) return;
+    document.querySelectorAll(".chip").forEach(c => c.classList.remove("active"));
+    chip.classList.add("active");
+    activeFilter = chip.dataset.series;
+    renderProducts();
+  });
+}
 
-document.getElementById("search").addEventListener("input", e => {
-  searchQuery = e.target.value;
-  renderProducts();
-});
+const searchInput = document.getElementById("search");
+if (searchInput) {
+  searchInput.addEventListener("input", e => {
+    searchQuery = e.target.value;
+    renderProducts();
+  });
+}
 
 // ── Cart ──
 function addToCart(code) {
@@ -333,16 +341,23 @@ async function init() {
     PRODUCTS = products;
     SERIES_NAMES = series;
   } catch (_) {
-    document.getElementById("products-grid").innerHTML = `
+    // On the shop page, surface the failure in the grid. On cart-only pages
+    // (no grid) there is nothing to render, so just bail — the cart stays empty.
+    const grid = document.getElementById("products-grid");
+    if (grid) {
+      grid.innerHTML = `
       <div class="no-results">
         <span class="no-results-icon">⚠️</span>
         We couldn't load the catalog. Please refresh the page.
       </div>`;
+    }
     return;
   }
 
   initHeroSwatches();
-  renderProducts();
+  // The product grid, hero swatches and filters are shop-only; the cart runs
+  // everywhere app.js is loaded.
+  if (document.getElementById("products-grid")) renderProducts();
 
   // Restore the cart from a prior visit / the Stripe round trip.
   const { items, dropped } = loadCart();
