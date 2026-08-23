@@ -122,10 +122,14 @@ echo "── Caddy (automatic HTTPS for $HOST) ───────────
 # Optional site password (Caddy basic-auth), enabled when BASIC_AUTH_USER and
 # BASIC_AUTH_HASH are set in the env file. /webhook is left open so Stripe can
 # still POST to it. Built with printf so the bcrypt hash's `$`s aren't expanded.
+# The status line is emitted OUTSIDE the redirected group below — anything echoed
+# inside it lands in the Caddyfile and breaks the config ("unrecognized directive").
+if [ -n "${BASIC_AUTH_USER:-}" ] && [ -n "${BASIC_AUTH_HASH:-}" ]; then
+  echo "· basic-auth enabled for user '$BASIC_AUTH_USER' (all paths except /webhook)"
+fi
 {
   printf '%s {\n' "$HOST"
   if [ -n "${BASIC_AUTH_USER:-}" ] && [ -n "${BASIC_AUTH_HASH:-}" ]; then
-    echo "· basic-auth enabled for user '$BASIC_AUTH_USER' (all paths except /webhook)"
     printf '    @needs_auth not path /webhook\n'
     printf '    basic_auth @needs_auth {\n'
     printf '        %s %s\n' "$BASIC_AUTH_USER" "$BASIC_AUTH_HASH"
