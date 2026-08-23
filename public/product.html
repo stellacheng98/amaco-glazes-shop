@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en" style="color-scheme: light only;">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Title/description are refined at runtime by app.js once the glaze loads. -->
+  <title>Glaze — Sample Glaze</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .pdp { max-width: 1000px; margin: 40px auto 90px; padding: 0 24px; }
+    .pdp-back {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: .9rem; color: var(--ink2); text-decoration: none;
+      margin-bottom: 28px; transition: color .15s;
+    }
+    .pdp-back:hover { color: var(--peach); }
+    .pdp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: start; }
+    .pdp-media {
+      border-radius: var(--r); overflow: hidden; background: var(--bg3);
+      aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center;
+      box-shadow: var(--shadow);
+    }
+    .pdp-media img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .pdp-swatch { width: 100%; height: 100%; }
+    .pdp-series {
+      font-size: .78rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
+      color: var(--peach); margin-bottom: 10px;
+    }
+    .pdp-code { font-size: .95rem; color: var(--ink3); font-weight: 500; }
+    .pdp-name { font-family: var(--serif); font-size: clamp(2rem, 4.5vw, 3rem); line-height: 1.05; margin: 4px 0 20px; color: var(--ink); }
+    .pdp-price { font-size: 1.5rem; font-weight: 600; color: var(--ink); margin-bottom: 6px; }
+    .pdp-price span { font-size: .95rem; font-weight: 400; color: var(--ink3); }
+    .pdp-stock { font-size: .9rem; margin-bottom: 24px; }
+    .pdp-stock.in { color: var(--sage); }
+    .pdp-stock.out { color: var(--peach); }
+    .pdp-desc { font-size: 1.05rem; line-height: 1.75; color: var(--ink2); margin-bottom: 24px; }
+    .pdp-spec {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: .85rem; color: var(--ink2);
+      background: var(--peach-bg); border-radius: var(--r-pill);
+      padding: 8px 16px; margin-bottom: 28px;
+    }
+    .pdp-actions .btn-primary { font-size: 1rem; padding: 14px 32px; }
+    .pdp-note { font-size: .8rem; color: var(--ink3); margin-top: 14px; }
+    .pdp-empty { text-align: center; padding: 80px 24px; color: var(--ink2); }
+    .pdp-empty-icon { display: block; font-size: 2.5rem; margin-bottom: 16px; }
+    .pdp-attribution { font-size: .78rem; color: var(--ink3); margin-top: 20px; line-height: 1.6; }
+    @media (max-width: 760px) {
+      .pdp-grid { grid-template-columns: 1fr; gap: 28px; }
+      .pdp-media { max-width: 420px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- SHIPPING / RETURNS BANNER -->
+  <div class="announce">
+    <strong>USA mainland shipping only.</strong> Glazes are sold in sample sizes — all sales final, no returns.
+  </div>
+
+  <!-- NAV -->
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="logo">
+        <div class="logo-mark">🏺</div>
+        <div>
+          <span class="logo-text">Sample Glaze</span>
+          <span class="logo-sub">AMACO Sample Shop</span>
+        </div>
+      </a>
+      <div class="nav-links">
+        <a href="index.html" class="nav-link">Shop</a>
+        <a href="about.html" class="nav-link">About</a>
+        <button class="cart-btn" onclick="toggleCart()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+          Cart <span class="cart-count" id="cart-count">0</span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- PRODUCT DETAIL (filled by app.js from ?code=) -->
+  <main class="pdp" id="product-detail">
+    <div class="pdp-empty">
+      <span class="pdp-empty-icon">🏺</span>
+      Loading glaze…
+    </div>
+  </main>
+
+  <!-- CART DRAWER (shared behavior with the shop, driven by app.js) -->
+  <div class="cart-overlay" id="cart-overlay" onclick="toggleCart()"></div>
+  <aside class="cart-drawer" id="cart-drawer">
+    <div class="cart-header">
+      <h2>Your cart</h2>
+      <button class="cart-close" onclick="toggleCart()" aria-label="Close cart">✕</button>
+    </div>
+    <div class="cart-items" id="cart-items">
+      <div class="cart-empty">
+        <span class="cart-empty-icon">🏺</span>
+        Your cart is empty.
+      </div>
+    </div>
+    <div class="cart-footer" id="cart-footer" style="display:none">
+      <div class="cart-total">
+        <span>Total</span>
+        <strong id="cart-total">$0.00</strong>
+      </div>
+      <div class="checkout-error" id="checkout-error" role="alert" style="display:none"></div>
+      <button class="btn-primary full-width" id="checkout-btn" onclick="checkout()">Checkout →</button>
+      <p class="cart-note">Secure payment via Stripe · Shipping calculated at checkout</p>
+    </div>
+  </aside>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-logo-wrap">
+        <div class="footer-mark">🏺</div>
+        <span class="footer-logo-text">Sample Glaze</span>
+      </div>
+      <div class="footer-links">
+        <a href="index.html" class="footer-link">Shop</a>
+        <a href="about.html" class="footer-link">About</a>
+      </div>
+      <div class="footer-divider"></div>
+      <p class="footer-contact">Customer service · <a href="mailto:customerservice@sampleglaze.com">customerservice@sampleglaze.com</a></p>
+      <p class="footer-legal">Glazes are AMACO brand products resold as 4 oz samples. Sample Glaze is not affiliated with or endorsed by AMACO / American Art Clay Co.</p>
+      <p class="footer-legal" style="opacity:.5">© 2026 Sample Glaze</p>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

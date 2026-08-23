@@ -136,8 +136,10 @@ function renderProducts() {
       ? `<img class="card-img" src="${p.img}" alt="${p.code} ${p.name}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"  />
          <div class="card-swatch-circle" style="background:linear-gradient(145deg,${lighten(p.color)},${p.color});display:none"></div>`
       : `<div class="card-swatch-circle" style="background:linear-gradient(145deg,${lighten(p.color)},${p.color})"></div>`;
+    // The whole card links to its detail page; the add button stops the click
+    // from bubbling so "+" still just adds to the cart without navigating.
     return `
-    <div class="product-card">
+    <div class="product-card" onclick="location.href='product.html?code=${encodeURIComponent(p.code)}'">
       <div class="card-swatch" style="background:${bgAlpha}">
         ${imgHtml}
         <div class="badge-row">
@@ -160,7 +162,7 @@ function renderProducts() {
           <button
             class="add-btn"
             id="btn-${p.code.replace(/[^a-z0-9]/gi,'')}"
-            onclick="addToCart('${p.code}')"
+            onclick="event.stopPropagation(); addToCart('${p.code}')"
             ${p.outOfStock ? "disabled" : ""}
             aria-label="Add ${p.name} to cart"
           >+</button>
@@ -279,6 +281,67 @@ function updateCartUI() {
   document.getElementById("cart-total").textContent = `$${grand.toFixed(2)}`;
 }
 
+// ── Product detail page ──
+// Renders product.html from the ?code= query param against the live catalog.
+// Reuses addToCart/toggleCart, so the cart works here exactly as on the shop.
+function escapeHtml(s) {
+  return String(s).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+}
+
+function renderProductDetail() {
+  const root = document.getElementById("product-detail");
+  if (!root) return;
+
+  const code = new URLSearchParams(location.search).get("code");
+  const p = PRODUCTS.find(x => x.code === code);
+
+  if (!p) {
+    root.innerHTML = `
+      <div class="pdp-empty">
+        <span class="pdp-empty-icon">🔍</span>
+        We couldn't find that glaze.
+        <div style="margin-top:20px"><a class="pdp-back" href="index.html">← Back to shop</a></div>
+      </div>`;
+    document.title = "Glaze not found — Sample Glaze";
+    return;
+  }
+
+  const seriesName = SERIES_NAMES[p.series] || p.series;
+  const media = p.img
+    ? `<img src="${p.img}" alt="${escapeHtml(p.code + " " + p.name)}"
+           onerror="this.style.display='none';this.nextElementSibling.style.display='block'" />
+       <div class="pdp-swatch" style="background:${p.color};display:none"></div>`
+    : `<div class="pdp-swatch" style="background:${p.color}"></div>`;
+
+  root.innerHTML = `
+    <a class="pdp-back" href="index.html">← Back to shop</a>
+    <div class="pdp-grid">
+      <div class="pdp-media">${media}</div>
+      <div class="pdp-info">
+        <div class="pdp-series">${escapeHtml(seriesName)}</div>
+        <div class="pdp-code">${escapeHtml(p.code)}</div>
+        <h1 class="pdp-name">${escapeHtml(p.name)}</h1>
+        <div class="pdp-price">$${p.price.toFixed(2)} <span>· 4 oz jar</span></div>
+        <div class="pdp-stock ${p.outOfStock ? "out" : "in"}">${p.outOfStock ? "Out of stock" : "In stock"}</div>
+        ${p.description ? `<p class="pdp-desc">${escapeHtml(p.description)}</p>` : ""}
+        <div class="pdp-spec">🔥 4 oz jar · Mid-High Fire · Cone 5–10</div>
+        <div class="pdp-actions">
+          <button class="btn-primary" onclick="addToCart('${p.code}'); showToast('Added ${escapeHtml(p.name)} to your cart.')"
+            ${p.outOfStock ? "disabled" : ""}>Add to cart →</button>
+        </div>
+        <p class="pdp-note">Secure payment via Stripe · Shipping calculated at checkout</p>
+        <p class="pdp-attribution">${escapeHtml(p.code)} ${escapeHtml(p.name)} is an AMACO brand glaze, resold here as a 4 oz sample. Sample Glaze is not affiliated with or endorsed by AMACO.</p>
+      </div>
+    </div>`;
+
+  document.title = `${p.code} ${p.name} — Sample Glaze`;
+  if (p.description) {
+    let meta = document.querySelector('meta[name="description"]');
+    if (!meta) { meta = document.createElement("meta"); meta.name = "description"; document.head.appendChild(meta); }
+    meta.content = p.description;
+  }
+}
+
 // ── Cart drawer ──
 function toggleCart() {
   const drawer  = document.getElementById("cart-drawer");
@@ -358,6 +421,7 @@ async function init() {
   // The product grid, hero swatches and filters are shop-only; the cart runs
   // everywhere app.js is loaded.
   if (document.getElementById("products-grid")) renderProducts();
+  if (document.getElementById("product-detail")) renderProductDetail();
 
   // Restore the cart from a prior visit / the Stripe round trip.
   const { items, dropped } = loadCart();
