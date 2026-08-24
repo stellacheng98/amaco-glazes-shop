@@ -343,9 +343,16 @@ function renderProductDetail() {
        </section>`
     : "";
 
-  const amacoHtml = s.amacoUrl
-    ? `<br><a href="${escapeHtml(s.amacoUrl)}" target="_blank" rel="noopener">View the original glaze on shop.amaco.com ↗</a>`
-    : "";
+  // The brand's own name and its source page drive the attribution line, so a
+  // Mayco glaze credits Mayco (and links to maycocolors.com) rather than AMACO.
+  const brand = p.brand || "AMACO";
+  const sourceUrl = s.sourceUrl || s.amacoUrl;
+  let sourceHtml = "";
+  if (sourceUrl) {
+    let host = "the manufacturer's site";
+    try { host = new URL(sourceUrl).host.replace(/^www\./, ""); } catch { /* keep fallback */ }
+    sourceHtml = `<br><a href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener">View the original glaze on ${escapeHtml(host)} ↗</a>`;
+  }
 
   root.innerHTML = `
     <a class="pdp-back" href="index.html">← Back to shop</a>
@@ -367,7 +374,7 @@ function renderProductDetail() {
             ${p.outOfStock ? "disabled" : ""}>Add to cart →</button>
         </div>
         <p class="pdp-note">Secure payment via Stripe · Shipping calculated at checkout</p>
-        <p class="pdp-attribution">${escapeHtml(p.code)} ${escapeHtml(p.name)} is an AMACO brand glaze, resold here as a 4 oz sample. Sample Glaze is not affiliated with or endorsed by AMACO.${amacoHtml}</p>
+        <p class="pdp-attribution">${escapeHtml(p.code)} ${escapeHtml(p.name)} is a ${escapeHtml(brand)} brand glaze, resold here as a 4 oz sample. Sample Glaze is not affiliated with or endorsed by ${escapeHtml(brand)}.${sourceHtml}</p>
       </div>
     </div>`;
 
