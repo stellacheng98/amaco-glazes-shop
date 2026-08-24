@@ -31,18 +31,29 @@
     }
     .pdp-code { font-size: .95rem; color: var(--ink3); font-weight: 500; }
     .pdp-name { font-family: var(--serif); font-size: clamp(2rem, 4.5vw, 3rem); line-height: 1.05; margin: 4px 0 20px; color: var(--ink); }
-    .pdp-price { font-size: 1.5rem; font-weight: 600; color: var(--ink); margin-bottom: 6px; }
+    .pdp-rowline { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
+    .pdp-price { font-size: 1.5rem; font-weight: 600; color: var(--ink); }
     .pdp-price span { font-size: .95rem; font-weight: 400; color: var(--ink3); }
-    .pdp-stock { font-size: .9rem; margin-bottom: 24px; }
+    .pdp-stock { font-size: .82rem; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
+    .pdp-stock::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
     .pdp-stock.in { color: var(--sage); }
     .pdp-stock.out { color: var(--peach); }
-    .pdp-desc { font-size: 1.05rem; line-height: 1.75; color: var(--ink2); margin-bottom: 24px; }
-    .pdp-spec {
-      display: inline-flex; align-items: center; gap: 8px;
-      font-size: .85rem; color: var(--ink2);
-      background: var(--peach-bg); border-radius: var(--r-pill);
-      padding: 8px 16px; margin-bottom: 28px;
-    }
+    .pdp-desc { font-size: 1.05rem; line-height: 1.75; color: var(--ink2); margin-bottom: 24px; max-width: 60ch; }
+
+    /* Quick facts */
+    .facts { border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; margin-bottom: 26px; }
+    .facts h2 { margin: 0; font-size: .74rem; letter-spacing: .12em; text-transform: uppercase; color: var(--clay, var(--ink3)); padding: 12px 16px; background: var(--bg3); border-bottom: 1px solid var(--border); }
+    .facts dl { margin: 0; display: grid; grid-template-columns: minmax(120px, auto) 1fr; }
+    .facts dt { padding: 11px 16px; font-size: .82rem; color: var(--ink3); border-bottom: 1px solid var(--border); }
+    .facts dd { padding: 11px 16px; margin: 0; font-size: .9rem; color: var(--ink); border-bottom: 1px solid var(--border); }
+    .facts dl > dt:nth-last-of-type(1), .facts dl > dd:nth-last-of-type(1) { border-bottom: none; }
+
+    /* How to use */
+    .howto { margin-bottom: 28px; }
+    .howto h2 { font-size: .74rem; letter-spacing: .12em; text-transform: uppercase; color: var(--ink3); margin: 0 0 12px; }
+    .howto ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+    .howto li { position: relative; padding-left: 24px; font-size: .95rem; color: var(--ink2); }
+    .howto li::before { content: ""; position: absolute; left: 4px; top: .55em; width: 7px; height: 7px; border-radius: 2px; background: var(--peach); }
     .pdp-actions .btn-primary { font-size: 1rem; padding: 14px 32px; }
     .pdp-note { font-size: .8rem; color: var(--ink3); margin-top: 14px; }
     .pdp-empty { text-align: center; padding: 80px 24px; color: var(--ink2); }

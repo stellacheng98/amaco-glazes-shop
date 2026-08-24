@@ -43,6 +43,7 @@ db.exec(`
     price_cents        INTEGER NOT NULL,
     image_url          TEXT,
     description        TEXT,
+    specs              TEXT,
     in_stock           INTEGER NOT NULL DEFAULT 1,
     is_new             INTEGER NOT NULL DEFAULT 0,
     is_active          INTEGER NOT NULL DEFAULT 1,
@@ -110,6 +111,11 @@ function toClientProduct(row) {
   };
   if (row.image_url) p.img = row.image_url;
   if (row.description) p.description = row.description;
+  // specs is a small JSON bundle of detail-page facts (finish, cone, …). Parse
+  // it back to an object; ignore it silently if it's ever malformed.
+  if (row.specs) {
+    try { p.specs = JSON.parse(row.specs); } catch { /* leave specs off */ }
+  }
   if (!row.in_stock) p.outOfStock = true;
   if (row.is_new) p.isNew = true;
   return p;
@@ -119,7 +125,7 @@ function toClientProduct(row) {
 export function getCatalog() {
   return db
     .prepare(
-      `SELECT code, name, series_code, color, price_cents, image_url, description, in_stock, is_new
+      `SELECT code, name, series_code, color, price_cents, image_url, description, specs, in_stock, is_new
        FROM products WHERE is_active = 1
        ORDER BY sort_order, code`
     )
@@ -216,10 +222,10 @@ function seedCatalog() {
 
   const insertProduct = db.prepare(
     `INSERT INTO products
-       (code, name, series_code, color, price_cents, image_url, description,
+       (code, name, series_code, color, price_cents, image_url, description, specs,
         in_stock, is_new, is_active, sort_order,
         stripe_product_id, stripe_price_id, stripe_price_cents, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)`
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)`
   );
   db.transaction(() => {
     PRODUCTS.forEach((p, i) => {
@@ -232,6 +238,7 @@ function seedCatalog() {
         Math.round(p.price * 100),
         p.img ?? null,
         p.description ?? null,
+        p.specs ? JSON.stringify(p.specs) : null,
         p.outOfStock ? 0 : 1,
         p.isNew ? 1 : 0,
         i,
@@ -299,42 +306,46 @@ function importLegacyOrders() {
   if (imported) console.log(`Imported ${imported} legacy order(s) from orders.json.`);
 }
 
-// Adds the `description` column to an already-created products table. Older
-// databases were created before the column existed, and `CREATE TABLE IF NOT
-// EXISTS` never alters an existing table — so add it here, guarded, on boot.
-function ensureDescriptionColumn() {
-  const hasColumn = db
-    .prepare("PRAGMA table_info(products)")
-    .all()
-    .some(c => c.name === "description");
-  if (!hasColumn) db.exec("ALTER TABLE products ADD COLUMN description TEXT");
+// Adds columns to an already-created products table. Older databases were
+// created before these columns existed, and `CREATE TABLE IF NOT EXISTS` never
+// alters an existing table — so add them here, guarded, on boot.
+function ensureProductColumns() {
+  const cols = db.prepare("PRAGMA table_info(products)").all().map(c => c.name);
+  if (!cols.includes("description")) db.exec("ALTER TABLE products ADD COLUMN description TEXT");
+  if (!cols.includes("specs")) db.exec("ALTER TABLE products ADD COLUMN specs TEXT");
 }
 
-// Backfills descriptions from products.js into rows that don't have one yet.
-// Because seedCatalog only runs on a fresh (empty) database, an existing box
-// would otherwise never pick up descriptions added to the source. Only fills
-// where the column is still empty, so a description edited at runtime is never
+// Backfills description and specs from products.js into rows that don't have
+// them yet. Because seedCatalog only runs on a fresh (empty) database, an
+// existing box would otherwise never pick up fields added to the source. Only
+// fills where the column is still empty, so a value edited at runtime is never
 // clobbered on the next boot.
-function backfillDescriptions() {
-  const update = db.prepare(
+function backfillProductContent() {
+  const updDesc = db.prepare(
     `UPDATE products SET description = ?, updated_at = ?
      WHERE code = ? AND (description IS NULL OR description = '')`
   );
+  const updSpecs = db.prepare(
+    `UPDATE products SET specs = ?, updated_at = ?
+     WHERE code = ? AND (specs IS NULL OR specs = '')`
+  );
   const now = nowIso();
-  let filled = 0;
+  let descFilled = 0, specsFilled = 0;
   db.transaction(() => {
     for (const p of PRODUCTS) {
-      if (p.description) filled += update.run(p.description, now, p.code).changes;
+      if (p.description) descFilled += updDesc.run(p.description, now, p.code).changes;
+      if (p.specs) specsFilled += updSpecs.run(JSON.stringify(p.specs), now, p.code).changes;
     }
   })();
-  if (filled) console.log(`Backfilled descriptions for ${filled} product(s).`);
+  if (descFilled) console.log(`Backfilled descriptions for ${descFilled} product(s).`);
+  if (specsFilled) console.log(`Backfilled specs for ${specsFilled} product(s).`);
 }
 
 // Populates the catalog on first run and migrates any legacy orders. Idempotent:
 // once a table has rows it is left alone, so this is safe to call on every boot.
 export function seedIfEmpty() {
-  ensureDescriptionColumn();
+  ensureProductColumns();
   if (db.prepare("SELECT COUNT(*) AS c FROM products").get().c === 0) seedCatalog();
   if (db.prepare("SELECT COUNT(*) AS c FROM orders").get().c === 0) importLegacyOrders();
-  backfillDescriptions();
+  backfillProductContent();
 }

@@ -313,6 +313,40 @@ function renderProductDetail() {
        <div class="pdp-swatch" style="background:${p.color};display:none"></div>`
     : `<div class="pdp-swatch" style="background:${p.color}"></div>`;
 
+  // Quick facts — only rows the AMACO source actually gave us; Size and Series
+  // are always known. See db.js for how `specs` is sourced and stored.
+  const s = p.specs || {};
+  const factRows = [
+    ["Finish", s.finish],
+    ["Fired color", s.firedColor],
+    ["Effect", s.effect],
+    ["Over texture", s.overTexture],
+    ["Cone", s.cone],
+    ["Size", "4 oz sample jar"],
+    ["Series", seriesName],
+  ].filter(([, v]) => v);
+  const factsHtml = `
+    <section class="facts">
+      <h2>Quick facts</h2>
+      <dl>${factRows.map(([k, v]) => `<dt>${escapeHtml(k)}</dt><dd>${escapeHtml(v)}</dd>`).join("")}</dl>
+    </section>`;
+
+  // How to use — application/run/cone tips, shown only where AMACO states them.
+  const howtoItems = [];
+  if (s.application) howtoItems.push(s.application);
+  if (s.run) howtoItems.push(s.run);
+  if (s.cone) howtoItems.push(`Fire to ${s.cone}.`);
+  const howtoHtml = howtoItems.length
+    ? `<section class="howto">
+         <h2>How to use</h2>
+         <ul>${howtoItems.map(t => `<li>${escapeHtml(t)}</li>`).join("")}</ul>
+       </section>`
+    : "";
+
+  const amacoHtml = s.amacoUrl
+    ? `<br><a href="${escapeHtml(s.amacoUrl)}" target="_blank" rel="noopener">View the original glaze on shop.amaco.com ↗</a>`
+    : "";
+
   root.innerHTML = `
     <a class="pdp-back" href="index.html">← Back to shop</a>
     <div class="pdp-grid">
@@ -321,16 +355,19 @@ function renderProductDetail() {
         <div class="pdp-series">${escapeHtml(seriesName)}</div>
         <div class="pdp-code">${escapeHtml(p.code)}</div>
         <h1 class="pdp-name">${escapeHtml(p.name)}</h1>
-        <div class="pdp-price">$${p.price.toFixed(2)} <span>· 4 oz jar</span></div>
-        <div class="pdp-stock ${p.outOfStock ? "out" : "in"}">${p.outOfStock ? "Out of stock" : "In stock"}</div>
+        <div class="pdp-rowline">
+          <span class="pdp-price">$${p.price.toFixed(2)} <span>· 4 oz jar</span></span>
+          <span class="pdp-stock ${p.outOfStock ? "out" : "in"}">${p.outOfStock ? "Out of stock" : "In stock"}</span>
+        </div>
         ${p.description ? `<p class="pdp-desc">${escapeHtml(p.description)}</p>` : ""}
-        <div class="pdp-spec">🔥 4 oz jar · Mid-High Fire · Cone 5–10</div>
+        ${factsHtml}
+        ${howtoHtml}
         <div class="pdp-actions">
           <button class="btn-primary" onclick="addToCart('${p.code}'); showToast('Added ${escapeHtml(p.name)} to your cart.')"
             ${p.outOfStock ? "disabled" : ""}>Add to cart →</button>
         </div>
         <p class="pdp-note">Secure payment via Stripe · Shipping calculated at checkout</p>
-        <p class="pdp-attribution">${escapeHtml(p.code)} ${escapeHtml(p.name)} is an AMACO brand glaze, resold here as a 4 oz sample. Sample Glaze is not affiliated with or endorsed by AMACO.</p>
+        <p class="pdp-attribution">${escapeHtml(p.code)} ${escapeHtml(p.name)} is an AMACO brand glaze, resold here as a 4 oz sample. Sample Glaze is not affiliated with or endorsed by AMACO.${amacoHtml}</p>
       </div>
     </div>`;
 
