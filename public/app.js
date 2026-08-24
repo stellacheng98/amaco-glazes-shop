@@ -300,7 +300,7 @@ function renderProductDetail() {
       <div class="pdp-empty">
         <span class="pdp-empty-icon">🔍</span>
         We couldn't find that glaze.
-        <div style="margin-top:20px"><a class="pdp-back" href="index.html">← Back to shop</a></div>
+        <div style="margin-top:20px"><a class="pdp-back" href="shop.html">← Back to shop</a></div>
       </div>`;
     document.title = "Glaze not found — Sample Glaze";
     return;
@@ -355,7 +355,7 @@ function renderProductDetail() {
   }
 
   root.innerHTML = `
-    <a class="pdp-back" href="index.html">← Back to shop</a>
+    <a class="pdp-back" href="shop.html">← Back to shop</a>
     <div class="pdp-grid">
       <div class="pdp-media">${media}</div>
       <div class="pdp-info">

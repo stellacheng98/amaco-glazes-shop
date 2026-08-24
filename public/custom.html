@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en" style="color-scheme: light only;">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Finished & Custom Cups — Sample Glaze</title>
+  <meta name="description" content="Shop finished one-of-a-kind cups or commission a custom piece for a wedding or birthday. Every cup is unique." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .cst { max-width: 1080px; margin: 0 auto; padding: 0 24px 90px; }
+    .cst-head { text-align: center; padding: 48px 24px 8px; }
+    .cst-eyebrow { font-size: .78rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--peach); margin-bottom: 12px; }
+    .cst-title { font-family: var(--serif,'Cormorant Garamond',serif); font-size: clamp(2rem,5vw,3rem); margin: 0 0 12px; color: var(--ink); }
+    .cst-sub { color: var(--ink2); max-width: 62ch; margin: 0 auto; line-height: 1.65; }
+    .cst-section-label { font-family: var(--serif,'Cormorant Garamond',serif); font-size: 1.6rem; color: var(--ink); margin: 48px 0 6px; }
+    .cst-section-note { color: var(--ink3); font-size: .9rem; margin: 0 0 20px; }
+
+    .gallery { display: grid; grid-template-columns: repeat(auto-fill,minmax(220px,1fr)); gap: 18px; }
+    .piece { background: var(--card); border: 1.5px solid var(--border); border-radius: var(--r); overflow: hidden; box-shadow: var(--shadow); display: flex; flex-direction: column; }
+    .piece-art { height: 180px; display: grid; place-items: center; font-size: 3rem; }
+    .piece-body { padding: 16px 16px 18px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+    .piece-name { font-weight: 600; color: var(--ink); }
+    .piece-desc { font-size: .85rem; color: var(--ink2); line-height: 1.5; flex: 1; }
+    .piece-tag { font-size: .72rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ink3); }
+    .piece-cta { margin-top: 8px; font-size: .85rem; font-weight: 600; color: var(--peach); text-decoration: none; }
+    .piece-cta:hover { text-decoration: underline; }
+
+    .cst-form { max-width: 640px; background: var(--card); border: 1.5px solid var(--border); border-radius: var(--r); padding: 26px; box-shadow: var(--shadow); }
+    .cst-form label { display: block; font-size: .82rem; font-weight: 600; color: var(--ink2); margin: 0 0 6px; }
+    .cst-field { margin-bottom: 18px; }
+    .cst-input, .cst-select, .cst-textarea { width: 100%; box-sizing: border-box; padding: 11px 13px; border: 1.5px solid var(--border); border-radius: 11px; font: inherit; font-size: .92rem; background: var(--bg); color: var(--ink); }
+    .cst-input:focus, .cst-select:focus, .cst-textarea:focus { outline: none; border-color: var(--peach2); }
+    .cst-textarea { min-height: 120px; resize: vertical; }
+    .cst-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .cst-hint { font-size: .8rem; color: var(--ink3); margin-top: 14px; line-height: 1.5; }
+    @media (max-width: 620px) { .cst-row { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+
+  <!-- SHIPPING / RETURNS BANNER -->
+  <div class="announce">
+    <strong>USA mainland shipping only.</strong> Finished and made-to-order pieces are final sale, no returns.
+  </div>
+
+  <!-- NAV -->
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="logo">
+        <div class="logo-mark">🏺</div>
+        <div>
+          <span class="logo-text">Sample Glaze</span>
+          <span class="logo-sub">AMACO &amp; Mayco Sample Shop</span>
+        </div>
+      </a>
+      <div class="nav-links">
+        <a href="shop.html" class="nav-link">Glazes</a>
+        <a href="build-a-cup.html" class="nav-link">Build a Cup</a>
+        <a href="custom.html" class="nav-link active">Custom</a>
+        <a href="about.html" class="nav-link">About</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="cst-head">
+    <p class="cst-eyebrow">Finished &amp; custom</p>
+    <h1 class="cst-title">One-of-a-kind cups &amp; custom orders</h1>
+    <p class="cst-sub">Every piece we finish is unique — glazed, fired, and never exactly repeatable. Browse recent work below, or commission a custom cup for a wedding, birthday, or just because. Tell us what you have in mind and we'll follow up with options and a quote.</p>
+  </div>
+
+  <main class="cst">
+    <!-- GALLERY -->
+    <h2 class="cst-section-label">Recent work</h2>
+    <p class="cst-section-note">A few pieces we've made. Each is one-of-a-kind — ask us what's currently available, or commission something similar.</p>
+    <!-- Placeholder pieces: swap the art blocks for real photos as inventory is added. -->
+    <div class="gallery" id="gallery"></div>
+
+    <!-- CUSTOM ORDER FORM -->
+    <h2 class="cst-section-label">Request a custom order</h2>
+    <p class="cst-section-note">Wedding sets, birthday gifts, matching pairs — tell us the details and we'll reply from customerservice@sampleglaze.com.</p>
+    <form class="cst-form" id="custom-form" onsubmit="return submitCustom(event)">
+      <div class="cst-row">
+        <div class="cst-field">
+          <label for="cf-name">Your name</label>
+          <input class="cst-input" id="cf-name" type="text" required />
+        </div>
+        <div class="cst-field">
+          <label for="cf-email">Your email</label>
+          <input class="cst-input" id="cf-email" type="email" required />
+        </div>
+      </div>
+      <div class="cst-row">
+        <div class="cst-field">
+          <label for="cf-occasion">Occasion</label>
+          <select class="cst-select" id="cf-occasion">
+            <option>Wedding gift</option>
+            <option>Birthday gift</option>
+            <option>Matching set / pair</option>
+            <option>Other / just because</option>
+          </select>
+        </div>
+        <div class="cst-field">
+          <label for="cf-qty">How many pieces?</label>
+          <input class="cst-input" id="cf-qty" type="text" placeholder="e.g. 2 mugs" />
+        </div>
+      </div>
+      <div class="cst-field">
+        <label for="cf-details">What do you have in mind?</label>
+        <textarea class="cst-textarea" id="cf-details" placeholder="Colors, style, names or dates to include, deadline, budget…" required></textarea>
+      </div>
+      <button class="btn-primary full-width" type="submit">Send request →</button>
+      <p class="cst-hint">This opens your email app with the details filled in, addressed to customerservice@sampleglaze.com. Prefer to write us directly? Email <a href="mailto:customerservice@sampleglaze.com">customerservice@sampleglaze.com</a>.</p>
+    </form>
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-logo-wrap">
+        <div class="footer-mark">🏺</div>
+        <span class="footer-logo-text">Sample Glaze</span>
+      </div>
+      <div class="footer-links">
+        <a href="shop.html" class="footer-link">Glazes</a>
+        <a href="build-a-cup.html" class="footer-link">Build a Cup</a>
+        <a href="custom.html" class="footer-link">Custom</a>
+        <a href="about.html" class="footer-link">About</a>
+      </div>
+      <div class="footer-divider"></div>
+      <p class="footer-contact">Customer service · <a href="mailto:customerservice@sampleglaze.com">customerservice@sampleglaze.com</a></p>
+      <p class="footer-legal">Glazes are AMACO and Mayco brand products resold as 4 oz samples. Sample Glaze is not affiliated with or endorsed by AMACO / American Art Clay Co. or Mayco Colors.</p>
+      <p class="footer-legal" style="opacity:.5">© 2026 Sample Glaze</p>
+    </div>
+  </footer>
+
+  <script>
+    // Placeholder gallery. Replace `art` gradients with real photo <img> tags as
+    // finished pieces are added; each piece links to a pre-filled inquiry email.
+    const PIECES = [
+      { name: " Member's Mark Speckle Mug", tag: "Sold as made", desc: "Wide tumbler in Mayco Speckled Toad over a sand body.", art: "linear-gradient(135deg,#6B7042,#B5B27A)" },
+      { name: "Cobalt Pour Cup", tag: "One of a kind", desc: "Blue Surf breaking over carved texture, cone 6.", art: "linear-gradient(135deg,#2C5F8A,#3E7CA8)" },
+      { name: "Oxblood Wedding Pair", tag: "Commissioned", desc: "Matching set finished in Oxblood with gold-dust rims.", art: "linear-gradient(135deg,#7A1F2B,#A83828)" },
+      { name: "Frost Crackle Mug", tag: "One of a kind", desc: "AMACO Kiln Ice crackle over a porcelain body.", art: "linear-gradient(135deg,#C8DCE8,#EAF2F8)" },
+      { name: "Amber Crystal Tumbler", tag: "Sold as made", desc: "Desert Dusk crystals melting into glossy purple.", art: "linear-gradient(135deg,#B0783E,#B5793C)" },
+      { name: "Celadon Bloom Cup", tag: "One of a kind", desc: "Turquoise crystal blooms on a thrown 8 oz cup.", art: "linear-gradient(135deg,#4FB2AB,#4EA)" },
+    ];
+    const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    function inquire(name) {
+      const subject = encodeURIComponent(`Custom cup inquiry: ${name}`);
+      const body = encodeURIComponent(`Hi Sample Glaze,\n\nI'm interested in a piece like "${name}". Could you tell me what's available or whether you could make something similar?\n\nThanks!`);
+      window.location.href = `mailto:customerservice@sampleglaze.com?subject=${subject}&body=${body}`;
+    }
+    document.getElementById("gallery").innerHTML = PIECES.map(p => `
+      <div class="piece">
+        <div class="piece-art" style="background:${p.art}">☕</div>
+        <div class="piece-body">
+          <span class="piece-tag">${esc(p.tag)}</span>
+          <span class="piece-name">${esc(p.name)}</span>
+          <span class="piece-desc">${esc(p.desc)}</span>
+          <a class="piece-cta" href="#" onclick="inquire('${esc(p.name).replace(/'/g, "\\'")}');return false;">Ask about this piece →</a>
+        </div>
+      </div>`).join("");
+
+    function submitCustom(e) {
+      e.preventDefault();
+      const name = document.getElementById("cf-name").value.trim();
+      const email = document.getElementById("cf-email").value.trim();
+      const occasion = document.getElementById("cf-occasion").value;
+      const qty = document.getElementById("cf-qty").value.trim();
+      const details = document.getElementById("cf-details").value.trim();
+      const subject = encodeURIComponent(`Custom order request — ${occasion}`);
+      const body = encodeURIComponent(
+        `Name: ${name}\nEmail: ${email}\nOccasion: ${occasion}\nQuantity: ${qty || "(not specified)"}\n\nDetails:\n${details}\n`
+      );
+      window.location.href = `mailto:customerservice@sampleglaze.com?subject=${subject}&body=${body}`;
+      return false;
+    }
+  </script>
+</body>
+</html>

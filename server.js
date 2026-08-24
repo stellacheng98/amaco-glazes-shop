@@ -154,6 +154,19 @@ const checkoutLimiter = rateLimit({
 
 app.use(express.json());
 
+// ── Build-a-Cup pricing (authoritative, server-side) ──────────────────
+// Base 8 oz bisqueware cups start at $20; the customer glazes them with test
+// tiles ($1 per glaze, $2 per two-glaze combo). Prices live here — never
+// trusted from the browser — so a tampered request can't change what's charged.
+const CUPS = {
+  "cup-classic": { name: "Classic 8 oz Cup", price_cents: 2000, blurb: "Straight-sided everyday coffee cup.", color: "#E8D9C3" },
+  "cup-tall":    { name: "Tall 8 oz Mug",    price_cents: 2400, blurb: "Taller profile with a comfy handle.",  color: "#E3D2B8" },
+  "cup-wide":    { name: "Wide 8 oz Tumbler",price_cents: 2800, blurb: "Handleless, wide-mouthed tumbler.",    color: "#EADFCC" },
+};
+const TILE_CENTS = 100;   // one glaze on one test tile
+const COMBO_CENTS = 200;  // two glazes layered on one test tile
+const MAX_TILES = 12;
+
 // ── Catalog API ───────────────────────────────────────────────────────
 // The front end fetches the catalog at load instead of shipping it as a baked-in
 // script, so a price, photo or stock change goes live on the next request with
@@ -165,6 +178,17 @@ app.get("/api/products", (_req, res) => {
 
 app.get("/api/series", (_req, res) => {
   res.json(getSeriesMap());
+});
+
+// Base cups for the Build-a-Cup section. Price shown in dollars for display;
+// checkout re-reads CUPS server-side so the amount never depends on the browser.
+app.get("/api/cups", (_req, res) => {
+  res.json({
+    cups: Object.entries(CUPS).map(([id, c]) => ({ id, name: c.name, price: c.price_cents / 100, blurb: c.blurb, color: c.color })),
+    tilePrice: TILE_CENTS / 100,
+    comboPrice: COMBO_CENTS / 100,
+    maxTiles: MAX_TILES,
+  });
 });
 
 // ── Checkout ──────────────────────────────────────────────────────────
@@ -216,7 +240,7 @@ app.post("/create-checkout-session", checkoutLimiter, async (req, res) => {
       payment_method_types: ["card"],
       line_items: lineItems,
       success_url: `${publicUrl}/success.html?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${publicUrl}/index.html`,
+      cancel_url: `${publicUrl}/shop.html`,
       // Recorded on the session so a fulfilled order shows what to pull and pack
       // without re-reading the line items.
       metadata: {
@@ -230,6 +254,67 @@ app.post("/create-checkout-session", checkoutLimiter, async (req, res) => {
     res.json({ url: session.url });
   } catch (err) {
     console.error("Could not create Checkout Session:", err.message);
+    res.status(500).json({ error: "Could not start checkout. Please try again." });
+  }
+});
+
+// ── Build-a-Cup checkout ──────────────────────────────────────────────
+// A custom cup is a base cup plus test tiles, each priced server-side. Because
+// the combination is arbitrary (not a fixed SKU), the Stripe line items are
+// built with price_data rather than pre-made Prices — but every amount still
+// comes from CUPS / TILE_CENTS / COMBO_CENTS here, never from the request.
+app.post("/create-cup-checkout-session", checkoutLimiter, async (req, res) => {
+  if (!checkoutEnabled) {
+    return res.status(503).json({ error: "Checkout isn't set up on this server yet." });
+  }
+
+  try {
+    const cup = CUPS[req.body?.cupId];
+    if (!cup) return res.status(400).json({ error: "Please pick a base cup." });
+
+    const tiles = Array.isArray(req.body?.tiles) ? req.body.tiles : [];
+    if (tiles.length === 0) return res.status(400).json({ error: "Add at least one glaze tile." });
+    if (tiles.length > MAX_TILES) return res.status(400).json({ error: `A cup can hold up to ${MAX_TILES} tiles.` });
+
+    let singles = 0, combos = 0;
+    const summary = [];
+    for (const tile of tiles) {
+      const codes = Array.isArray(tile?.glazes) ? tile.glazes.filter(Boolean) : [];
+      if (codes.length < 1 || codes.length > 2) {
+        return res.status(400).json({ error: "Each tile is one glaze, or two for a combo." });
+      }
+      for (const code of codes) {
+        const glaze = getProductForCheckout(code);
+        if (!glaze || !glaze.is_active) return res.status(400).json({ error: `Unknown glaze: ${code}` });
+      }
+      if (codes.length === 1) { singles++; summary.push(codes[0]); }
+      else { combos++; summary.push(codes.join("+")); }
+    }
+
+    const lineItems = [
+      { price_data: { currency: "usd", unit_amount: cup.price_cents, product_data: { name: `${cup.name} (bisqueware)` } }, quantity: 1 },
+    ];
+    if (singles) lineItems.push({ price_data: { currency: "usd", unit_amount: TILE_CENTS, product_data: { name: "Glaze test tile" } }, quantity: singles });
+    if (combos) lineItems.push({ price_data: { currency: "usd", unit_amount: COMBO_CENTS, product_data: { name: "Glaze combo tile (2 layered)" } }, quantity: combos });
+
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      payment_method_types: ["card"],
+      line_items: lineItems,
+      success_url: `${publicUrl}/success.html?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${publicUrl}/build-a-cup.html`,
+      // Recorded so a fulfilled cup order shows the base and exactly which glazes
+      // go on which tiles without re-reading the line items.
+      metadata: {
+        kind: "cup",
+        cup: cup.name,
+        tiles: summary.join(", ").slice(0, 480),
+      },
+    });
+
+    res.json({ url: session.url });
+  } catch (err) {
+    console.error("Could not create Cup Checkout Session:", err.message);
     res.status(500).json({ error: "Could not start checkout. Please try again." });
   }
 });
