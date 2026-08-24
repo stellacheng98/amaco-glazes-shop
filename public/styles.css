@@ -298,6 +298,7 @@ body {
   display: flex; flex-direction: column;
   transition: transform .2s, box-shadow .2s, border-color .2s;
   box-shadow: var(--shadow);
+  cursor: pointer;
 }
 .product-card:hover {
   transform: translateY(-5px) rotate(-.3deg);
