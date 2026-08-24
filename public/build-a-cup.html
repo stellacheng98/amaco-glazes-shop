@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en" style="color-scheme: light only;">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Build a Cup — Sample Glaze</title>
+  <meta name="description" content="Pick an 8 oz cup and choose the glazes we test-tile onto it. Cups from $20, glazes $1 each, combos $2." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .bac { max-width: 1080px; margin: 0 auto; padding: 0 24px 90px; }
+    .bac-head { text-align: center; padding: 48px 24px 24px; }
+    .bac-eyebrow { font-size: .78rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--peach); margin-bottom: 12px; }
+    .bac-title { font-family: var(--serif,'Cormorant Garamond',serif); font-size: clamp(2rem,5vw,3rem); margin: 0 0 12px; color: var(--ink); }
+    .bac-sub { color: var(--ink2); max-width: 60ch; margin: 0 auto; line-height: 1.65; }
+    .bac-grid { display: grid; grid-template-columns: 1fr 340px; gap: 32px; align-items: start; }
+    .bac-step-label { font-size: .78rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--ink3); margin: 28px 0 12px; }
+
+    .cup-options { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; }
+    .cup-opt { text-align: left; background: var(--card); border: 1.5px solid var(--border); border-radius: var(--r); padding: 0; cursor: pointer; overflow: hidden; transition: border-color .15s, box-shadow .15s, transform .15s; font: inherit; }
+    .cup-opt:hover { transform: translateY(-3px); box-shadow: var(--shadow); }
+    .cup-opt.sel { border-color: var(--peach); box-shadow: 0 0 0 2px var(--peach-bg); }
+    .cup-opt-art { height: 84px; display: grid; place-items: center; font-size: 2rem; }
+    .cup-opt-body { padding: 12px 14px 14px; }
+    .cup-opt-name { font-weight: 600; color: var(--ink); font-size: .95rem; }
+    .cup-opt-blurb { font-size: .8rem; color: var(--ink3); margin: 3px 0 8px; line-height: 1.4; }
+    .cup-opt-price { font-weight: 600; color: var(--peach); font-size: .95rem; }
+
+    .tile-modes { display: inline-flex; gap: 4px; background: var(--bg3); border-radius: var(--r-pill); padding: 4px; margin-bottom: 14px; }
+    .tile-mode { border: none; background: none; font: inherit; font-size: .85rem; padding: 7px 16px; border-radius: var(--r-pill); cursor: pointer; color: var(--ink2); }
+    .tile-mode.on { background: var(--peach); color: #fff; font-weight: 500; }
+    .combo-hint { font-size: .82rem; color: var(--ink3); margin: 0 0 12px; min-height: 1.2em; }
+    .combo-hint b { color: var(--peach); }
+
+    .glz-search { width: 100%; box-sizing: border-box; padding: 11px 14px; border: 1.5px solid var(--border); border-radius: 12px; font: inherit; font-size: .92rem; margin-bottom: 14px; background: var(--card); color: var(--ink); }
+    .glz-search:focus { outline: none; border-color: var(--peach2); }
+    .glz-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(150px,1fr)); gap: 8px; max-height: 460px; overflow-y: auto; padding: 2px; }
+    .glz { display: flex; align-items: center; gap: 9px; text-align: left; background: var(--card); border: 1.5px solid var(--border); border-radius: 12px; padding: 8px 10px; cursor: pointer; font: inherit; transition: border-color .12s, background .12s; }
+    .glz:hover { border-color: var(--peach2); }
+    .glz.picked { border-color: var(--peach); background: var(--peach-bg); }
+    .glz-swatch { width: 26px; height: 26px; border-radius: 7px; flex: none; border: 1px solid rgba(0,0,0,.08); background-size: cover; background-position: center; }
+    .glz-meta { min-width: 0; }
+    .glz-code { font-size: .72rem; color: var(--ink3); }
+    .glz-name { font-size: .82rem; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .summary { position: sticky; top: 78px; background: var(--card); border: 1.5px solid var(--border); border-radius: var(--r); padding: 20px; box-shadow: var(--shadow); }
+    .summary h2 { font-family: var(--serif,'Cormorant Garamond',serif); font-size: 1.4rem; margin: 0 0 14px; color: var(--ink); }
+    .summary-cup { font-size: .9rem; color: var(--ink2); padding-bottom: 12px; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+    .summary-cup .muted { color: var(--ink3); }
+    .tile-list { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 8px; max-height: 240px; overflow-y: auto; }
+    .tile-row { display: flex; align-items: center; gap: 8px; font-size: .85rem; }
+    .tile-chips { display: flex; gap: 3px; flex: none; }
+    .tile-chip { width: 18px; height: 18px; border-radius: 5px; border: 1px solid rgba(0,0,0,.08); }
+    .tile-label { flex: 1; min-width: 0; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tile-cost { color: var(--ink3); }
+    .tile-x { border: none; background: none; color: var(--ink3); cursor: pointer; font-size: 1rem; line-height: 1; padding: 2px 4px; }
+    .tile-x:hover { color: var(--peach); }
+    .tile-empty { font-size: .85rem; color: var(--ink3); padding: 10px 0; }
+    .summary-total { display: flex; justify-content: space-between; align-items: baseline; margin: 12px 0; padding-top: 12px; border-top: 1px solid var(--border); }
+    .summary-total span { color: var(--ink2); }
+    .summary-total strong { font-size: 1.5rem; color: var(--ink); }
+    .bac-err { display: none; background: #fdecea; color: #a1362b; border-radius: 10px; padding: 9px 12px; font-size: .85rem; margin-bottom: 10px; }
+    .bac-note { font-size: .78rem; color: var(--ink3); margin-top: 12px; line-height: 1.5; }
+
+    @media (max-width: 860px) {
+      .bac-grid { grid-template-columns: 1fr; }
+      .summary { position: static; }
+      .cup-options { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- SHIPPING / RETURNS BANNER -->
+  <div class="announce">
+    <strong>USA mainland shipping only.</strong> Sample sizes and made-to-order pieces are final sale, no returns.
+  </div>
+
+  <!-- NAV -->
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="index.html" class="logo">
+        <div class="logo-mark">🏺</div>
+        <div>
+          <span class="logo-text">Sample Glaze</span>
+          <span class="logo-sub">AMACO &amp; Mayco Sample Shop</span>
+        </div>
+      </a>
+      <div class="nav-links">
+        <a href="shop.html" class="nav-link">Glazes</a>
+        <a href="build-a-cup.html" class="nav-link active">Build a Cup</a>
+        <a href="custom.html" class="nav-link">Custom</a>
+        <a href="about.html" class="nav-link">About</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="bac-head">
+    <p class="bac-eyebrow">Build a cup</p>
+    <h1 class="bac-title">Design your test-tile cup</h1>
+    <p class="bac-sub">Pick an 8 oz bisqueware cup, then choose the glazes we'll test-tile onto it. One glaze per tile is $1; layer two for a combo tile at $2. We glaze, fire, and ship your finished cup.</p>
+  </div>
+
+  <main class="bac">
+    <div class="bac-grid">
+      <div>
+        <div class="bac-step-label">1 · Choose your cup</div>
+        <div class="cup-options" id="cup-options"><div class="tile-empty">Loading cups…</div></div>
+
+        <div class="bac-step-label">2 · Add glaze tiles</div>
+        <div class="tile-modes">
+          <button class="tile-mode on" data-mode="single" id="mode-single">Single glaze · $1</button>
+          <button class="tile-mode" data-mode="combo" id="mode-combo">Combo (2 layered) · $2</button>
+        </div>
+        <p class="combo-hint" id="combo-hint"></p>
+        <input class="glz-search" id="glz-search" type="text" placeholder="Search 197 glazes by name, code, or series…" autocomplete="off" />
+        <div class="glz-grid" id="glz-grid"></div>
+      </div>
+
+      <aside class="summary">
+        <h2>Your cup</h2>
+        <div class="summary-cup" id="summary-cup"><span class="muted">No cup selected yet.</span></div>
+        <ul class="tile-list" id="tile-list"><li class="tile-empty">No tiles yet — add a glaze.</li></ul>
+        <div class="summary-total"><span>Total</span><strong id="summary-total">$0.00</strong></div>
+        <div class="bac-err" id="bac-err" role="alert"></div>
+        <button class="btn-primary full-width" id="cup-checkout" onclick="cupCheckout()">Checkout →</button>
+        <p class="bac-note">Secure payment via Stripe · Shipping calculated at checkout. Made-to-order cups are final sale.</p>
+      </aside>
+    </div>
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-logo-wrap">
+        <div class="footer-mark">🏺</div>
+        <span class="footer-logo-text">Sample Glaze</span>
+      </div>
+      <div class="footer-links">
+        <a href="shop.html" class="footer-link">Glazes</a>
+        <a href="build-a-cup.html" class="footer-link">Build a Cup</a>
+        <a href="custom.html" class="footer-link">Custom</a>
+        <a href="about.html" class="footer-link">About</a>
+      </div>
+      <div class="footer-divider"></div>
+      <p class="footer-contact">Customer service · <a href="mailto:customerservice@sampleglaze.com">customerservice@sampleglaze.com</a></p>
+      <p class="footer-legal">Glazes are AMACO and Mayco brand products resold as 4 oz samples. Sample Glaze is not affiliated with or endorsed by AMACO / American Art Clay Co. or Mayco Colors.</p>
+      <p class="footer-legal" style="opacity:.5">© 2026 Sample Glaze</p>
+    </div>
+  </footer>
+
+  <script src="build-a-cup.js"></script>
+</body>
+</html>

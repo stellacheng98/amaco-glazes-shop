@@ -3,11 +3,38 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sample Glaze — AMACO & Mayco Mid-High Fire Glazes</title>
+  <title>Sample Glaze — Glazes, Build-a-Cup & Custom Pottery</title>
+  <meta name="description" content="A small pottery studio: try AMACO & Mayco glazes in 4 oz samples, build your own test-tile cup, or commission a one-of-a-kind piece." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
+  <style>
+    .hub { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+    .hub-hero { text-align: center; padding: 72px 24px 40px; }
+    .hub-eyebrow { font-size: .8rem; font-weight: 500; letter-spacing: .16em; text-transform: uppercase; color: var(--peach); margin-bottom: 16px; }
+    .hub-title { font-family: var(--serif, 'Cormorant Garamond', serif); font-size: clamp(2.6rem, 6vw, 4.2rem); line-height: 1.02; margin: 0 0 18px; color: var(--ink); text-wrap: balance; }
+    .hub-title em { font-style: italic; color: var(--peach); }
+    .hub-sub { font-size: 1.1rem; line-height: 1.7; color: var(--ink2); max-width: 60ch; margin: 0 auto; }
+    .hub-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; padding: 24px 24px 90px; max-width: 1080px; margin: 0 auto; }
+    .hub-card {
+      display: flex; flex-direction: column; text-decoration: none; color: inherit;
+      background: var(--card); border: 1.5px solid var(--border); border-radius: var(--r);
+      overflow: hidden; box-shadow: var(--shadow); transition: transform .2s, box-shadow .2s, border-color .2s;
+    }
+    .hub-card:hover { transform: translateY(-6px); box-shadow: var(--shadow-lg); border-color: var(--peach2); }
+    .hub-card-art { height: 150px; display: grid; place-items: center; font-size: 3.2rem; }
+    .hub-card-art.glazes { background: linear-gradient(135deg,#F4845F22,#7BBCD822,#7BAE8C22); }
+    .hub-card-art.cup    { background: linear-gradient(135deg,#E8D9C3,#EADFCC); }
+    .hub-card-art.custom { background: linear-gradient(135deg,#B49BC822,#F0C96A33,#F4845F22); }
+    .hub-card-body { padding: 22px 22px 26px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+    .hub-card-kicker { font-size: .72rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--ink3); }
+    .hub-card-name { font-family: var(--serif, 'Cormorant Garamond', serif); font-size: 1.6rem; color: var(--ink); line-height: 1.1; }
+    .hub-card-desc { font-size: .95rem; color: var(--ink2); line-height: 1.6; flex: 1; }
+    .hub-card-cta { margin-top: 8px; font-size: .9rem; font-weight: 600; color: var(--peach); }
+    .hub-card-price { font-size: .8rem; color: var(--ink3); }
+    @media (max-width: 820px) { .hub-cards { grid-template-columns: 1fr; } }
+  </style>
 </head>
 <body>
 
@@ -27,111 +54,56 @@
         </div>
       </a>
       <div class="nav-links">
-        <a href="index.html" class="nav-link active">Shop</a>
+        <a href="shop.html" class="nav-link">Glazes</a>
+        <a href="build-a-cup.html" class="nav-link">Build a Cup</a>
+        <a href="custom.html" class="nav-link">Custom</a>
         <a href="about.html" class="nav-link">About</a>
-        <button class="cart-btn" onclick="toggleCart()">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
-          Cart <span class="cart-count" id="cart-count">0</span>
-        </button>
       </div>
     </div>
   </nav>
 
   <!-- HERO -->
-  <section class="hero">
-    <div class="hero-swatches" id="hero-swatches"></div>
-    <div class="hero-inner">
-      <div class="hero-pill">
-        <span class="hero-pill-dot"></span>
-        4 oz · Mid-High Fire · Cone 5–10
-      </div>
-      <h1 class="hero-title">Try before you<br><em>commit</em></h1>
-      <p class="hero-body">Sample jars of AMACO and Mayco mid-high fire glazes — enough to test, layer, and discover your palette without buying a full pint.</p>
-      <div class="hero-actions">
-        <a href="#products" class="btn-primary">Browse all glazes</a>
-        <a href="about.html" class="btn-ghost">How it works</a>
-      </div>
+  <section class="hub">
+    <div class="hub-hero">
+      <p class="hub-eyebrow">A small pottery studio</p>
+      <h1 class="hub-title">Try a glaze. Build a cup.<br>Commission something <em>one of a kind</em>.</h1>
+      <p class="hub-sub">Three ways to work with us: sample the AMACO &amp; Mayco glazes we love, design your own test-tile coffee cup, or order a finished piece made just for you.</p>
     </div>
   </section>
 
-  <!-- STATS -->
-  <div class="stats-bar">
-    <div class="stats-inner">
-      <div class="stat">
-        <span class="stat-num">197</span>
-        <span class="stat-label">Glazes</span>
+  <!-- SECTION CARDS -->
+  <section class="hub-cards">
+    <a class="hub-card" href="shop.html">
+      <div class="hub-card-art glazes">🎨</div>
+      <div class="hub-card-body">
+        <span class="hub-card-kicker">01 · Sample glazes</span>
+        <span class="hub-card-name">4 oz Sample Glazes</span>
+        <span class="hub-card-desc">197 AMACO &amp; Mayco mid-high fire glazes in 4 oz jars — enough to test, layer, and find your palette before buying a full pint.</span>
+        <span class="hub-card-cta">Browse glazes →</span>
       </div>
-      <div class="stat-divider"></div>
-      <div class="stat">
-        <span class="stat-num">9</span>
-        <span class="stat-label">Series</span>
-      </div>
-      <div class="stat-divider"></div>
-      <div class="stat">
-        <span class="stat-num">4 oz</span>
-        <span class="stat-label">Per jar</span>
-      </div>
-      <div class="stat-divider"></div>
-      <div class="stat">
-        <span class="stat-num">C 5–10</span>
-        <span class="stat-label">Fire range</span>
-      </div>
-    </div>
-  </div>
+    </a>
 
-  <!-- FILTERS -->
-  <section class="filters-bar" id="products">
-    <div class="filters-inner">
-      <span class="filters-label">Series</span>
-      <div class="filter-chips" id="filter-chips">
-        <button class="chip active" data-series="all">All</button>
-        <button class="chip" data-series="C">Celadon</button>
-        <button class="chip" data-series="CO">Cosmos</button>
-        <button class="chip" data-series="CR">Crawls</button>
-        <button class="chip" data-series="KI">Kiln Ice</button>
-        <button class="chip" data-series="PC">Potter's Choice</button>
-        <button class="chip" data-series="PCF">PC Flux</button>
-        <button class="chip" data-series="PG">Phase Glaze</button>
-        <button class="chip" data-series="SH">Shino</button>
-        <button class="chip" data-series="SW">Mayco Stoneware</button>
+    <a class="hub-card" href="build-a-cup.html">
+      <div class="hub-card-art cup">☕</div>
+      <div class="hub-card-body">
+        <span class="hub-card-kicker">02 · Build a cup</span>
+        <span class="hub-card-name">Test-Tile Cup</span>
+        <span class="hub-card-desc">Pick an 8 oz cup and choose the glazes we test-tile onto it. A hands-on way to see your favorite colors on a real piece.</span>
+        <span class="hub-card-cta">Start building →</span>
+        <span class="hub-card-price">Cups from $20 · glazes $1 each · combos $2</span>
       </div>
-      <div class="search-wrap">
-        <span class="search-icon">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        </span>
-        <input class="search-input" type="text" id="search" placeholder="Search…" autocomplete="off" />
+    </a>
+
+    <a class="hub-card" href="custom.html">
+      <div class="hub-card-art custom">🎁</div>
+      <div class="hub-card-body">
+        <span class="hub-card-kicker">03 · Custom &amp; gifts</span>
+        <span class="hub-card-name">Finished &amp; Custom Cups</span>
+        <span class="hub-card-desc">Shop finished one-of-a-kind cups, or commission a custom piece for a wedding or birthday — every cup is unique.</span>
+        <span class="hub-card-cta">See custom work →</span>
       </div>
-    </div>
+    </a>
   </section>
-
-  <!-- PRODUCT GRID -->
-  <section class="products">
-    <div class="products-grid" id="products-grid"></div>
-  </section>
-
-  <!-- CART DRAWER -->
-  <div class="cart-overlay" id="cart-overlay" onclick="toggleCart()"></div>
-  <aside class="cart-drawer" id="cart-drawer">
-    <div class="cart-header">
-      <h2>Your cart</h2>
-      <button class="cart-close" onclick="toggleCart()" aria-label="Close cart">✕</button>
-    </div>
-    <div class="cart-items" id="cart-items">
-      <div class="cart-empty">
-        <span class="cart-empty-icon">🏺</span>
-        Your cart is empty.
-      </div>
-    </div>
-    <div class="cart-footer" id="cart-footer" style="display:none">
-      <div class="cart-total">
-        <span>Total</span>
-        <strong id="cart-total">$0.00</strong>
-      </div>
-      <div class="checkout-error" id="checkout-error" role="alert" style="display:none"></div>
-      <button class="btn-primary full-width" id="checkout-btn" onclick="checkout()">Checkout →</button>
-      <p class="cart-note">Secure payment via Stripe · Shipping calculated at checkout</p>
-    </div>
-  </aside>
 
   <!-- FOOTER -->
   <footer class="footer">
@@ -141,7 +113,9 @@
         <span class="footer-logo-text">Sample Glaze</span>
       </div>
       <div class="footer-links">
-        <a href="index.html" class="footer-link">Shop</a>
+        <a href="shop.html" class="footer-link">Glazes</a>
+        <a href="build-a-cup.html" class="footer-link">Build a Cup</a>
+        <a href="custom.html" class="footer-link">Custom</a>
         <a href="about.html" class="footer-link">About</a>
       </div>
       <div class="footer-divider"></div>
@@ -150,7 +124,5 @@
       <p class="footer-legal" style="opacity:.5">© 2026 Sample Glaze</p>
     </div>
   </footer>
-
-  <script src="app.js"></script>
 </body>
 </html>
