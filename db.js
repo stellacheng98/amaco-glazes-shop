@@ -44,6 +44,7 @@ db.exec(`
     image_url          TEXT,
     description        TEXT,
     specs              TEXT,
+    brand              TEXT,
     in_stock           INTEGER NOT NULL DEFAULT 1,
     is_new             INTEGER NOT NULL DEFAULT 0,
     is_active          INTEGER NOT NULL DEFAULT 1,
@@ -116,6 +117,9 @@ function toClientProduct(row) {
   if (row.specs) {
     try { p.specs = JSON.parse(row.specs); } catch { /* leave specs off */ }
   }
+  // The shop began as AMACO-only, so rows predating multi-brand have no brand;
+  // treat those as AMACO.
+  p.brand = row.brand || "AMACO";
   if (!row.in_stock) p.outOfStock = true;
   if (row.is_new) p.isNew = true;
   return p;
@@ -125,7 +129,7 @@ function toClientProduct(row) {
 export function getCatalog() {
   return db
     .prepare(
-      `SELECT code, name, series_code, color, price_cents, image_url, description, specs, in_stock, is_new
+      `SELECT code, name, series_code, color, price_cents, image_url, description, specs, brand, in_stock, is_new
        FROM products WHERE is_active = 1
        ORDER BY sort_order, code`
     )
@@ -205,10 +209,8 @@ function readStripePrices() {
   }
 }
 
-function seedCatalog() {
-  const stripePrices = readStripePrices();
-  const now = nowIso();
-
+// Ensure every series referenced by the catalog exists (idempotent).
+function ensureSeries() {
   const insertSeries = db.prepare(
     "INSERT OR IGNORE INTO series (code, name, sort_order) VALUES (?, ?, ?)"
   );
@@ -219,39 +221,69 @@ function seedCatalog() {
       if (!SERIES_NAMES[p.series]) insertSeries.run(p.series, p.series, 999);
     }
   })();
+}
 
-  const insertProduct = db.prepare(
-    `INSERT INTO products
-       (code, name, series_code, color, price_cents, image_url, description, specs,
-        in_stock, is_new, is_active, sort_order,
-        stripe_product_id, stripe_price_id, stripe_price_cents, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)`
+// Prepared lazily: the `brand` column is added by ensureProductColumns() at boot,
+// which runs before any insert — preparing this at module load would fail on an
+// older database that predates the column.
+let _insertProductStmt = null;
+function insertProductRow(p, sortOrder, now, stripePrices) {
+  if (!_insertProductStmt) {
+    _insertProductStmt = db.prepare(
+      `INSERT INTO products
+         (code, name, series_code, color, price_cents, image_url, description, specs, brand,
+          in_stock, is_new, is_active, sort_order,
+          stripe_product_id, stripe_price_id, stripe_price_cents, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)`
+    );
+  }
+  const sp = stripePrices[p.code] || {};
+  _insertProductStmt.run(
+    p.code,
+    p.name,
+    p.series,
+    p.color ?? null,
+    Math.round(p.price * 100),
+    p.img ?? null,
+    p.description ?? null,
+    p.specs ? JSON.stringify(p.specs) : null,
+    p.brand ?? null,
+    p.outOfStock ? 0 : 1,
+    p.isNew ? 1 : 0,
+    sortOrder,
+    sp.productId ?? null,
+    sp.priceId ?? null,
+    sp.unitAmount ?? null,
+    now,
+    now
   );
-  db.transaction(() => {
-    PRODUCTS.forEach((p, i) => {
-      const sp = stripePrices[p.code] || {};
-      insertProduct.run(
-        p.code,
-        p.name,
-        p.series,
-        p.color ?? null,
-        Math.round(p.price * 100),
-        p.img ?? null,
-        p.description ?? null,
-        p.specs ? JSON.stringify(p.specs) : null,
-        p.outOfStock ? 0 : 1,
-        p.isNew ? 1 : 0,
-        i,
-        sp.productId ?? null,
-        sp.priceId ?? null,
-        sp.unitAmount ?? null,
-        now,
-        now
-      );
-    });
-  })();
+}
 
+function seedCatalog() {
+  const stripePrices = readStripePrices();
+  const now = nowIso();
+  ensureSeries();
+  db.transaction(() => {
+    PRODUCTS.forEach((p, i) => insertProductRow(p, i, now, stripePrices));
+  })();
   console.log(`Seeded catalog: ${Object.keys(SERIES_NAMES).length} series, ${PRODUCTS.length} products.`);
+}
+
+// Inserts any catalog entries not already in the DB (matched by code) without
+// touching existing rows. This is how new glazes — e.g. a whole new brand added
+// to products.js — reach a database that was seeded before they existed;
+// seedCatalog only runs on an empty DB.
+function insertMissingProducts() {
+  const stripePrices = readStripePrices();
+  const now = nowIso();
+  const existing = new Set(db.prepare("SELECT code FROM products").all().map(r => r.code));
+  const missing = PRODUCTS.map((p, i) => [p, i]).filter(([p]) => !existing.has(p.code));
+  if (missing.length === 0) return;
+  ensureSeries(); // a new brand may bring new series
+  db.transaction(() => {
+    for (const [p, i] of missing) insertProductRow(p, i, now, stripePrices);
+  })();
+  console.log(`Inserted ${missing.length} new product(s) into the catalog.`);
 }
 
 // One-time migration of the old flat file into the orders/order_items tables.
@@ -313,6 +345,7 @@ function ensureProductColumns() {
   const cols = db.prepare("PRAGMA table_info(products)").all().map(c => c.name);
   if (!cols.includes("description")) db.exec("ALTER TABLE products ADD COLUMN description TEXT");
   if (!cols.includes("specs")) db.exec("ALTER TABLE products ADD COLUMN specs TEXT");
+  if (!cols.includes("brand")) db.exec("ALTER TABLE products ADD COLUMN brand TEXT");
 }
 
 // Backfills description and specs from products.js into rows that don't have
@@ -329,16 +362,22 @@ function backfillProductContent() {
     `UPDATE products SET specs = ?, updated_at = ?
      WHERE code = ? AND (specs IS NULL OR specs = '')`
   );
+  const updBrand = db.prepare(
+    `UPDATE products SET brand = ?, updated_at = ?
+     WHERE code = ? AND (brand IS NULL OR brand = '')`
+  );
   const now = nowIso();
-  let descFilled = 0, specsFilled = 0;
+  let descFilled = 0, specsFilled = 0, brandFilled = 0;
   db.transaction(() => {
     for (const p of PRODUCTS) {
       if (p.description) descFilled += updDesc.run(p.description, now, p.code).changes;
       if (p.specs) specsFilled += updSpecs.run(JSON.stringify(p.specs), now, p.code).changes;
+      if (p.brand) brandFilled += updBrand.run(p.brand, now, p.code).changes;
     }
   })();
   if (descFilled) console.log(`Backfilled descriptions for ${descFilled} product(s).`);
   if (specsFilled) console.log(`Backfilled specs for ${specsFilled} product(s).`);
+  if (brandFilled) console.log(`Backfilled brand for ${brandFilled} product(s).`);
 }
 
 // Populates the catalog on first run and migrates any legacy orders. Idempotent:
@@ -346,6 +385,7 @@ function backfillProductContent() {
 export function seedIfEmpty() {
   ensureProductColumns();
   if (db.prepare("SELECT COUNT(*) AS c FROM products").get().c === 0) seedCatalog();
+  else insertMissingProducts();
   if (db.prepare("SELECT COUNT(*) AS c FROM orders").get().c === 0) importLegacyOrders();
   backfillProductContent();
 }
