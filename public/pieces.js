@@ -28,7 +28,7 @@ async function init() {
 function renderGrid() {
   const root = document.getElementById("cups-root");
   const cards = CUPS.map(c => `
-    <a class="cup-card" href="cups.html?id=${encodeURIComponent(c.id)}">
+    <a class="cup-card" href="pieces.html?id=${encodeURIComponent(c.id)}">
       <div class="cup-card-art" style="${artStyle(c.photos[0], c.color)}">
         <span class="cup-card-badge ${c.sold ? "sold" : ""}">${c.sold ? "Sold" : "One of a kind"}</span>
       </div>
@@ -50,7 +50,7 @@ function renderDetail(id) {
   const root = document.getElementById("cups-root");
   const c = CUPS.find(x => String(x.id) === String(id));
   if (!c) {
-    root.innerHTML = `<div class="cups-empty">We couldn't find that piece.<div style="margin-top:16px"><a class="cd-back" href="cups.html">← Back to pieces</a></div></div>`;
+    root.innerHTML = `<div class="cups-empty">We couldn't find that piece.<div style="margin-top:16px"><a class="cd-back" href="pieces.html">← Back to pieces</a></div></div>`;
     return;
   }
   const photos = c.photos.length ? c.photos : [null];
@@ -59,7 +59,7 @@ function renderDetail(id) {
     ? `<button class="btn-primary full-width sold" disabled>Sold</button>`
     : `<button class="btn-primary full-width" id="buy-btn" onclick="buyCup('${esc(c.id)}')">Buy this piece →</button>`;
   root.innerHTML = `
-    <a class="cd-back" href="cups.html">← Back to pieces</a>
+    <a class="cd-back" href="pieces.html">← Back to pieces</a>
     <div class="cd-grid">
       <div class="cd-gallery">
         <div class="cd-main" id="cd-main" style="${artStyle(photos[0], c.color)}"></div>

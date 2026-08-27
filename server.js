@@ -363,7 +363,7 @@ app.post("/create-finished-cup-checkout-session", checkoutLimiter, async (req, r
         quantity: 1,
       }],
       success_url: `${publicUrl}/success.html?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${publicUrl}/cups.html`,
+      cancel_url: `${publicUrl}/pieces.html`,
       metadata: { kind: "finished-piece", pieceId: String(piece.id), piece: piece.name },
     });
     res.json({ url: session.url });
