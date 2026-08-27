@@ -39,6 +39,16 @@
 <body>
   <main class="adm">
     <h1>🐾 Pieces admin</h1>
+
+    <!-- Lock screen: shown until the password is accepted -->
+    <div id="admin-lock" class="adm-card" style="display:none">
+      <h2>Locked</h2>
+      <p class="adm-note" id="lock-msg" style="margin-bottom:16px">Enter the admin password to manage pieces.</p>
+      <button class="btn-primary" onclick="unlock()">Enter password</button>
+    </div>
+
+    <!-- Admin UI: revealed only after a successful auth -->
+    <div id="admin-content" style="display:none">
     <p class="adm-note">Add and manage the one-of-a-kind pieces shown on the <a href="cups.html">Pieces</a> page. Photos are hosted in S3 — paste the image URLs here.</p>
 
     <div class="adm-card">
@@ -75,6 +85,7 @@
       <h2>Inventory</h2>
       <div class="plist" id="plist"><div class="adm-empty">Loading…</div></div>
     </div>
+    </div><!-- /#admin-content -->
   </main>
 
   <script src="admin.js"></script>

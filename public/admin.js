@@ -1,16 +1,13 @@
-// Pieces admin. Talks to the gated /api/admin/pieces endpoints. The admin
-// password is asked once and kept for the session; every request carries it as
-// HTTP Basic auth. Photos are S3 URLs entered by hand.
+// Pieces admin. The UI stays locked until the password is accepted by the gated
+// /api/admin/pieces endpoint; a wrong password never reveals the admin content.
+// The password is asked once and kept for the session; every request carries it
+// as HTTP Basic auth. Photos are S3 URLs entered by hand.
 
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const money = n => `$${Number(n).toFixed(2)}`;
 
 function authHeader() {
-  let pw = sessionStorage.getItem("sg_admin_pw");
-  if (!pw) {
-    pw = prompt("Admin password:") || "";
-    sessionStorage.setItem("sg_admin_pw", pw);
-  }
+  const pw = sessionStorage.getItem("sg_admin_pw") || "";
   return "Basic " + btoa("admin:" + pw);
 }
 function clearAuth() { sessionStorage.removeItem("sg_admin_pw"); }
@@ -21,32 +18,46 @@ async function api(method, path, body) {
     headers: { "Content-Type": "application/json", Authorization: authHeader() },
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (res.status === 401) {
-    clearAuth();
-    throw new Error("Wrong admin password — reload and try again.");
-  }
+  if (res.status === 401) throw new Error("Wrong admin password.");
   if (res.status === 503) throw new Error("Admin isn't configured on this server (ADMIN_PASSWORD not set).");
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `Request failed (${res.status}).`);
   return data;
 }
 
-function flash(id, msg, isErr) {
-  const el = document.getElementById(id);
-  el.textContent = msg;
-  el.style.display = "block";
-  setTimeout(() => { el.style.display = "none"; }, 4000);
+function showLock(msg) {
+  document.getElementById("admin-content").style.display = "none";
+  const lock = document.getElementById("admin-lock");
+  lock.style.display = "";
+  if (msg) document.getElementById("lock-msg").textContent = msg;
 }
 
-async function load() {
-  const list = document.getElementById("plist");
-  let pieces;
-  try {
-    pieces = await api("GET", "/api/admin/pieces");
-  } catch (err) {
-    list.innerHTML = `<div class="adm-empty">${esc(err.message)}</div>`;
-    return;
+// Ask for the password (if needed), then verify it against the gated API. Only
+// reveal the admin UI on success; otherwise keep it hidden and stay on the lock.
+async function unlock() {
+  if (!sessionStorage.getItem("sg_admin_pw")) {
+    const pw = prompt("Admin password:");
+    if (pw === null) { showLock("Enter the admin password to manage pieces."); return; }
+    sessionStorage.setItem("sg_admin_pw", pw);
   }
+  try {
+    const pieces = await api("GET", "/api/admin/pieces");
+    document.getElementById("admin-lock").style.display = "none";
+    document.getElementById("admin-content").style.display = "";
+    renderList(pieces);
+  } catch (err) {
+    clearAuth();
+    showLock(err.message || "Wrong admin password.");
+  }
+}
+
+async function refresh() {
+  try { renderList(await api("GET", "/api/admin/pieces")); }
+  catch (err) { clearAuth(); showLock(err.message); }
+}
+
+function renderList(pieces) {
+  const list = document.getElementById("plist");
   if (!pieces.length) { list.innerHTML = `<div class="adm-empty">No pieces yet — add one above.</div>`; return; }
   list.innerHTML = pieces.map(p => {
     const cover = p.photos && p.photos[0] ? `background-image:url('${esc(p.photos[0])}')` : `background:${esc(p.color || "#E8D9C3")}`;
@@ -65,6 +76,13 @@ async function load() {
   }).join("");
 }
 
+function flash(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.style.display = "block";
+  setTimeout(() => { el.style.display = "none"; }, 4000);
+}
+
 async function addPiece() {
   const btn = document.getElementById("add-btn");
   btn.disabled = true;
@@ -78,23 +96,24 @@ async function addPiece() {
     });
     ["f-name", "f-price", "f-color", "f-blurb", "f-photos"].forEach(id => (document.getElementById(id).value = ""));
     flash("add-msg", "Piece added.");
-    load();
+    refresh();
   } catch (err) {
-    flash("add-err", err.message, true);
+    if (/password/i.test(err.message)) { clearAuth(); showLock(err.message); }
+    else flash("add-err", err.message);
   } finally {
     btn.disabled = false;
   }
 }
 
 async function toggleSold(id, sold) {
-  try { await api("PATCH", `/api/admin/pieces/${id}`, { sold }); load(); }
-  catch (err) { alert(err.message); }
+  try { await api("PATCH", `/api/admin/pieces/${id}`, { sold }); refresh(); }
+  catch (err) { if (/password/i.test(err.message)) { clearAuth(); showLock(err.message); } else alert(err.message); }
 }
 
 async function removePiece(id, name) {
   if (!confirm(`Delete "${name}"? This can't be undone.`)) return;
-  try { await api("DELETE", `/api/admin/pieces/${id}`); load(); }
-  catch (err) { alert(err.message); }
+  try { await api("DELETE", `/api/admin/pieces/${id}`); refresh(); }
+  catch (err) { if (/password/i.test(err.message)) { clearAuth(); showLock(err.message); } else alert(err.message); }
 }
 
-load();
+unlock();
