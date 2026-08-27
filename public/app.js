@@ -4,22 +4,28 @@
 // without a redeploy. These start empty and are filled once the fetch resolves.
 let PRODUCTS = [];
 let SERIES_NAMES = {};
+let PIECES = [];   // one-of-a-kind finished pieces (for cart rehydration)
 
 let cart = [];
 let activeFilter = "all";
 let searchQuery = "";
 
 // ── Cart persistence ──
-// Only { code, qty } is stored. Name/price/color are re-hydrated from PRODUCTS
-// on load, so a catalog or price change is never served stale from a shopper's
-// browser — same trust model the server uses when it re-prices each code.
+// Only the identity is stored — { code, qty } for a glaze, { kind:"piece", id }
+// for a one-of-a-kind piece. Name/price/photo are re-hydrated from PRODUCTS /
+// PIECES on load, so a catalog or price change is never served stale from a
+// shopper's browser — same trust model the server uses when it re-prices.
 const CART_KEY = "amaco-cart-v1";
+
+function pieceToCartItem(pc) {
+  return { kind: "piece", id: pc.id, name: pc.name, price: pc.price, img: (pc.photos && pc.photos[0]) || null, color: pc.color, qty: 1 };
+}
 
 function saveCart() {
   try {
     localStorage.setItem(
       CART_KEY,
-      JSON.stringify(cart.map(i => ({ code: i.code, qty: i.qty })))
+      JSON.stringify(cart.map(i => (i.kind === "piece" ? { kind: "piece", id: i.id } : { code: i.code, qty: i.qty })))
     );
   } catch (_) {
     // Private mode or storage full — degrade to in-memory-only, as before.
@@ -27,7 +33,7 @@ function saveCart() {
 }
 
 // Returns { items, dropped } where `dropped` names entries that are no longer
-// purchasable (left the catalog or went out of stock) so we can tell the user.
+// purchasable (left the catalog, went out of stock, or a piece that sold).
 function loadCart() {
   let stored;
   try {
@@ -40,18 +46,19 @@ function loadCart() {
   const items = [];
   const dropped = [];
   for (const entry of stored) {
+    if (entry && (entry.kind === "piece" || entry.id != null)) {
+      const pc = PIECES.find(p => String(p.id) === String(entry.id));
+      if (!pc) { dropped.push("a piece"); continue; }
+      if (pc.sold) { dropped.push(pc.name); continue; }
+      items.push(pieceToCartItem(pc));
+      continue;
+    }
     const product = PRODUCTS.find(p => p.code === entry.code);
-    if (!product) {
-      dropped.push(entry.code);
-      continue;
-    }
-    if (product.outOfStock) {
-      dropped.push(product.name);
-      continue;
-    }
+    if (!product) { dropped.push(entry.code); continue; }
+    if (product.outOfStock) { dropped.push(product.name); continue; }
     // Clamp to the server's accepted range (1..99).
     const qty = Math.min(99, Math.max(1, Math.floor(Number(entry.qty) || 0)));
-    items.push({ ...product, qty });
+    items.push({ kind: "glaze", ...product, qty });
   }
   return { items, dropped };
 }
@@ -211,9 +218,9 @@ function addToCart(code) {
   const product = PRODUCTS.find(p => p.code === code);
   if (!product || product.outOfStock) return;
 
-  const existing = cart.find(i => i.code === code);
+  const existing = cart.find(i => i.kind !== "piece" && i.code === code);
   if (existing) existing.qty++;
-  else cart.push({ ...product, qty: 1 });
+  else cart.push({ kind: "glaze", ...product, qty: 1 });
 
   updateCartUI();
 
@@ -227,11 +234,29 @@ function addToCart(code) {
   }
 }
 
+// Add a one-of-a-kind piece. Only one of each (qty 1) and never a sold piece.
+function addPieceToCart(id) {
+  const pc = PIECES.find(p => String(p.id) === String(id));
+  if (!pc || pc.sold) return;
+  if (cart.some(i => i.kind === "piece" && String(i.id) === String(id))) {
+    showToast(`${pc.name} is already in your cart.`);
+    return;
+  }
+  cart.push(pieceToCartItem(pc));
+  updateCartUI();
+  showToast(`Added ${pc.name} to your cart.`);
+}
+
 function changeQty(code, delta) {
-  const item = cart.find(i => i.code === code);
+  const item = cart.find(i => i.kind !== "piece" && i.code === code);
   if (!item) return;
   item.qty += delta;
-  if (item.qty <= 0) cart = cart.filter(i => i.code !== code);
+  if (item.qty <= 0) cart = cart.filter(i => !(i.kind !== "piece" && i.code === code));
+  updateCartUI();
+}
+
+function removePiece(id) {
+  cart = cart.filter(i => !(i.kind === "piece" && String(i.id) === String(id)));
   updateCartUI();
 }
 
@@ -252,12 +277,32 @@ function updateCartUI() {
 
   footerEl.style.display = "block";
   itemsEl.innerHTML = cart.map(item => {
-    // Show the product photo, falling back to the color swatch if it is missing
-    // or fails to load — same pattern as the product cards.
+    // Show the photo, falling back to the color swatch if missing or it fails to
+    // load — same pattern as the product cards.
+    const alt = item.kind === "piece" ? item.name : `${item.code} ${item.name}`;
     const thumb = item.img
-      ? `<img class="cart-item-img" src="${item.img}" alt="${item.code} ${item.name}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='block'" />
+      ? `<img class="cart-item-img" src="${item.img}" alt="${alt}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='block'" />
          <div class="cart-item-swatch" style="background:${item.color};display:none"></div>`
       : `<div class="cart-item-swatch" style="background:${item.color}"></div>`;
+
+    if (item.kind === "piece") {
+      // One-of-a-kind: no quantity, just a remove control.
+      return `
+      <div class="cart-item">
+        ${thumb}
+        <div class="cart-item-info">
+          <div class="cart-item-name">${item.name}</div>
+          <div class="cart-item-sub">One of a kind</div>
+        </div>
+        <div class="cart-item-right">
+          <span class="cart-item-price">$${item.price.toFixed(2)}</span>
+          <div class="cart-item-controls">
+            <button class="qty-btn" onclick="removePiece('${item.id}')" aria-label="Remove piece">✕</button>
+          </div>
+        </div>
+      </div>`;
+    }
+
     return `
     <div class="cart-item">
       ${thumb}
@@ -396,8 +441,8 @@ function toggleCart() {
 }
 
 // ── Checkout ──
-// Sends glaze codes and quantities only. The server resolves each code to a
-// Stripe Price, so the amount charged never depends on anything sent here.
+// Sends only identities — glaze { code, qty } or piece { kind, pieceId }. The
+// server re-prices each from the DB, so the amount never depends on the browser.
 async function checkout() {
   if (cart.length === 0) return;
 
@@ -411,7 +456,7 @@ async function checkout() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        items: cart.map(i => ({ code: i.code, qty: i.qty })),
+        items: cart.map(i => (i.kind === "piece" ? { kind: "piece", pieceId: i.id } : { code: i.code, qty: i.qty })),
       }),
     });
 
@@ -466,6 +511,10 @@ async function init() {
   // everywhere app.js is loaded.
   if (document.getElementById("products-grid")) renderProducts();
   if (document.getElementById("product-detail")) renderProductDetail();
+
+  // Pieces power the cart's one-of-a-kind items on every page (rehydration and
+  // the Pieces page's add-to-cart). A failure here just leaves PIECES empty.
+  PIECES = await fetch("/api/finished-cups").then(r => (r.ok ? r.json() : [])).catch(() => []);
 
   // Restore the cart from a prior visit / the Stripe round trip.
   const { items, dropped } = loadCart();

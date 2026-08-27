@@ -224,10 +224,28 @@ app.post("/create-checkout-session", checkoutLimiter, async (req, res) => {
       return res.status(400).json({ error: "Your cart is empty." });
     }
 
+    // The cart can hold glazes (fixed Stripe prices, any qty) and one-of-a-kind
+    // pieces (dynamic price_data, qty 1, sell-once). Both are priced/validated
+    // here from the DB; the browser only sends codes/ids.
     const lineItems = [];
+    const summary = [];
+    const seenPieces = new Set();
     for (const item of items) {
-      const glaze = getProductForCheckout(item.code);
+      if (item && (item.kind === "piece" || item.pieceId != null)) {
+        const pieceId = item.pieceId ?? item.id;
+        if (seenPieces.has(String(pieceId))) continue; // one-of-a-kind: ignore dupes
+        seenPieces.add(String(pieceId));
+        const piece = getPiece(pieceId);
+        if (!piece) return res.status(400).json({ error: "A piece in your cart is no longer available. Please refresh." });
+        if (piece.sold) return res.status(400).json({ error: `Sorry — "${piece.name}" has already sold.` });
+        let cover;
+        try { const ph = piece.photos ? JSON.parse(piece.photos) : []; if (ph[0]) cover = [ph[0]]; } catch { /* no cover */ }
+        lineItems.push({ price_data: { currency: "usd", unit_amount: piece.price_cents, product_data: { name: piece.name, images: cover } }, quantity: 1 });
+        summary.push(`piece#${piece.id}`);
+        continue;
+      }
 
+      const glaze = getProductForCheckout(item.code);
       if (!glaze || !glaze.is_active) {
         return res.status(400).json({ error: `Unknown glaze: ${item.code}` });
       }
@@ -237,14 +255,15 @@ app.post("/create-checkout-session", checkoutLimiter, async (req, res) => {
       if (!glaze.stripe_price_id) {
         return res.status(400).json({ error: `${glaze.code} ${glaze.name} isn't available for purchase yet.` });
       }
-
       const quantity = Number(item.qty);
       if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) {
         return res.status(400).json({ error: `Invalid quantity for ${item.code}.` });
       }
-
       lineItems.push({ price: glaze.stripe_price_id, quantity });
+      summary.push(`${item.code}×${quantity}`);
     }
+
+    if (lineItems.length === 0) return res.status(400).json({ error: "Your cart is empty." });
 
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
@@ -265,10 +284,7 @@ app.post("/create-checkout-session", checkoutLimiter, async (req, res) => {
       // Recorded on the session so a fulfilled order shows what to pull and pack
       // without re-reading the line items.
       metadata: {
-        glazes: lineItems
-          .map((line, i) => `${items[i].code}×${line.quantity}`)
-          .join(", ")
-          .slice(0, 500),
+        glazes: summary.join(", ").slice(0, 500),
       },
     });
 
