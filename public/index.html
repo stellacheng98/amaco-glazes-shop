@@ -16,7 +16,7 @@
     .hub-title { font-family: var(--serif, 'Cormorant Garamond', serif); font-size: clamp(2.6rem, 6vw, 4.2rem); line-height: 1.02; margin: 0 0 18px; color: var(--ink); text-wrap: balance; }
     .hub-title em { font-style: italic; color: var(--peach); }
     .hub-sub { font-size: 1.1rem; line-height: 1.7; color: var(--ink2); max-width: 60ch; margin: 0 auto; }
-    .hub-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; padding: 24px 24px 90px; max-width: 760px; margin: 0 auto; }
+    .hub-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; padding: 24px 24px 90px; max-width: 1080px; margin: 0 auto; }
     .hub-card {
       display: flex; flex-direction: column; text-decoration: none; color: inherit;
       background: var(--card); border: 1.5px solid var(--border); border-radius: var(--r);
@@ -54,10 +54,11 @@
       </a>
       <div class="nav-links">
         <a href="shop.html" class="nav-link">Glazes</a>
+        <a href="about.html" class="nav-link">About</a>
         <!-- Build a Cup — temporarily hidden -->
         <!-- <a href="build-a-cup.html" class="nav-link">Build a Cup</a> -->
+        <a href="cups.html" class="nav-link">Cups</a>
         <a href="custom.html" class="nav-link">Custom</a>
-        <a href="about.html" class="nav-link">About</a>
       </div>
     </div>
   </nav>
@@ -66,8 +67,8 @@
   <section class="hub">
     <div class="hub-hero">
       <p class="hub-eyebrow">A small pottery studio</p>
-      <h1 class="hub-title">Try a glaze.<br>Commission something <em>one of a kind</em>.</h1>
-      <p class="hub-sub">Two ways to work with us: sample the AMACO &amp; Mayco glazes we love, or order a finished piece made just for you.</p>
+      <h1 class="hub-title">Try a glaze. Shop a cup.<br>Commission something <em>one of a kind</em>.</h1>
+      <p class="hub-sub">Three ways to work with us: sample the AMACO &amp; Mayco glazes we love, shop a finished one-of-a-kind cup, or commission a piece made just for you.</p>
     </div>
   </section>
 
@@ -96,13 +97,23 @@
     </a>
     -->
 
+    <a class="hub-card" href="cups.html">
+      <div class="hub-card-art cup">☕</div>
+      <div class="hub-card-body">
+        <span class="hub-card-kicker">02 · Finished cups</span>
+        <span class="hub-card-name">One-of-a-Kind Cups</span>
+        <span class="hub-card-desc">Shop finished, one-of-a-kind cups we've glazed and fired. Each piece is unique and sells only once.</span>
+        <span class="hub-card-cta">Shop cups →</span>
+      </div>
+    </a>
+
     <a class="hub-card" href="custom.html">
       <div class="hub-card-art custom">🎁</div>
       <div class="hub-card-body">
-        <span class="hub-card-kicker">02 · Custom &amp; gifts</span>
-        <span class="hub-card-name">Finished &amp; Custom Cups</span>
-        <span class="hub-card-desc">Shop finished one-of-a-kind cups, or commission a custom piece for a wedding or birthday — every cup is unique.</span>
-        <span class="hub-card-cta">See custom work →</span>
+        <span class="hub-card-kicker">03 · Custom &amp; gifts</span>
+        <span class="hub-card-name">Custom Orders</span>
+        <span class="hub-card-desc">Commission a custom piece for a wedding or birthday — tell us what you have in mind and we'll follow up with options.</span>
+        <span class="hub-card-cta">Start a request →</span>
       </div>
     </a>
   </section>
@@ -117,6 +128,7 @@
       <div class="footer-links">
         <a href="shop.html" class="footer-link">Glazes</a>
         <!-- <a href="build-a-cup.html" class="footer-link">Build a Cup</a> -->
+        <a href="cups.html" class="footer-link">Cups</a>
         <a href="custom.html" class="footer-link">Custom</a>
         <a href="about.html" class="footer-link">About</a>
       </div>

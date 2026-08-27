@@ -167,6 +167,32 @@ const TILE_CENTS = 100;   // one glaze on one test tile
 const COMBO_CENTS = 200;  // two glazes layered on one test tile
 const MAX_TILES = 12;
 
+// ── Finished cups for sale (one-of-a-kind inventory) ──────────────────
+// Each finished cup is a unique piece: it sells once, then set sold:true.
+// Prices are authoritative here — never trusted from the browser. Photos are
+// files under public/cups/ (first photo is the cover). To add a piece: drop its
+// photos in public/cups/, add an entry below, and deploy. See docs/finished-cups.md.
+const FINISHED_CUPS = [
+  {
+    id: "fc-001", name: "Cobalt Pour Mug", price_cents: 4800, sold: false,
+    blurb: "Wheel-thrown 10 oz mug in Blue Surf breaking green over carved texture. Cone 6, dinnerware safe.",
+    photos: ["cups/fc-001-1.jpg", "cups/fc-001-2.jpg", "cups/fc-001-3.jpg"],
+    color: "#2C5F8A",
+  },
+  {
+    id: "fc-002", name: "Amber Crystal Tumbler", price_cents: 5200, sold: false,
+    blurb: "Handleless 8 oz tumbler finished in Desert Dusk — amber matte with melting purple-blue crystals.",
+    photos: ["cups/fc-002-1.jpg", "cups/fc-002-2.jpg"],
+    color: "#B0783E",
+  },
+  {
+    id: "fc-003", name: "Frost Crackle Cup", price_cents: 4500, sold: true,
+    blurb: "Porcelain 8 oz cup under AMACO Kiln Ice crackle. One of a kind — sold.",
+    photos: ["cups/fc-003-1.jpg"],
+    color: "#C8DCE8",
+  },
+];
+
 // ── Catalog API ───────────────────────────────────────────────────────
 // The front end fetches the catalog at load instead of shipping it as a baked-in
 // script, so a price, photo or stock change goes live on the next request with
@@ -189,6 +215,15 @@ app.get("/api/cups", (_req, res) => {
     comboPrice: COMBO_CENTS / 100,
     maxTiles: MAX_TILES,
   });
+});
+
+// Finished one-of-a-kind cups for sale. Prices come from FINISHED_CUPS server-side;
+// the browser only ever sends a cup id.
+app.get("/api/finished-cups", (_req, res) => {
+  res.json(FINISHED_CUPS.map(c => ({
+    id: c.id, name: c.name, price: c.price_cents / 100, sold: !!c.sold,
+    blurb: c.blurb, photos: c.photos || [], color: c.color || "#E8D9C3",
+  })));
 });
 
 // ── Checkout ──────────────────────────────────────────────────────────
@@ -315,6 +350,37 @@ app.post("/create-cup-checkout-session", checkoutLimiter, async (req, res) => {
     res.json({ url: session.url });
   } catch (err) {
     console.error("Could not create Cup Checkout Session:", err.message);
+    res.status(500).json({ error: "Could not start checkout. Please try again." });
+  }
+});
+
+// ── Finished-cup checkout ─────────────────────────────────────────────
+// One-of-a-kind piece: priced from FINISHED_CUPS, sold once. The browser sends
+// only the cup id; the amount and availability are decided here.
+app.post("/create-finished-cup-checkout-session", checkoutLimiter, async (req, res) => {
+  if (!checkoutEnabled) {
+    return res.status(503).json({ error: "Checkout isn't set up on this server yet." });
+  }
+  try {
+    const cup = FINISHED_CUPS.find(c => c.id === req.body?.cupId);
+    if (!cup) return res.status(400).json({ error: "That piece isn't available." });
+    if (cup.sold) return res.status(400).json({ error: "Sorry — this one-of-a-kind piece has already sold." });
+
+    const cover = cup.photos && cup.photos[0] ? [`${publicUrl}/${cup.photos[0]}`] : undefined;
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      payment_method_types: ["card"],
+      line_items: [{
+        price_data: { currency: "usd", unit_amount: cup.price_cents, product_data: { name: cup.name, images: cover } },
+        quantity: 1,
+      }],
+      success_url: `${publicUrl}/success.html?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${publicUrl}/cups.html`,
+      metadata: { kind: "finished-cup", cupId: cup.id, cup: cup.name },
+    });
+    res.json({ url: session.url });
+  } catch (err) {
+    console.error("Could not create Finished-Cup Checkout Session:", err.message);
     res.status(500).json({ error: "Could not start checkout. Please try again." });
   }
 });
