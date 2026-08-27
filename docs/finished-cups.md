@@ -1,53 +1,39 @@
-# Adding finished cups (one-of-a-kind pieces for sale)
+# Managing finished pieces (the Pieces section)
 
-Finished cups shown in the **Cups** section come from the `FINISHED_CUPS` list in
-`server.js`. Each cup is a unique piece: it sells once, then you mark it `sold`.
-Prices live in `FINISHED_CUPS` (server-side, authoritative) — the browser only
-ever sends a cup id.
+Finished one-of-a-kind pieces live in the **`pieces` table** in the SQLite DB and
+are managed from the **admin page** — no code edits or deploys to add a piece.
 
-## 1. Add the photos
+## Admin page
 
-Put the photo files in **`public/cups/`**, named `‹id›-‹n›.jpg`:
+Visit **`/admin`** (e.g. `https://<site>/admin`). It asks for the admin password
+(`ADMIN_PASSWORD`), then lets you:
 
-```
-public/cups/fc-004-1.jpg   ← cover (shown in the grid)
-public/cups/fc-004-2.jpg   ← detail shot
-public/cups/fc-004-3.jpg   ← detail shot
-```
+- **Add a piece**: name, price, swatch color, description, and photo URLs.
+- **Mark sold / available** and **delete** pieces from the inventory list.
 
-Square-ish, ~1000×1000px, under ~500 KB each (JPG/PNG/WebP). The site serves them
-at `https://<site>/cups/fc-004-1.jpg`.
+Prices and availability are authoritative on the server; the storefront and
+checkout read from the `pieces` table.
 
-## 2. Add the cup to the inventory
+## Photos (S3)
 
-In `server.js`, add an entry to `FINISHED_CUPS`:
+Piece photos are hosted in an **S3 bucket**. Upload each image to the bucket,
+copy its public URL, and paste the URLs into the admin form (one per line — the
+first is the cover shown in the grid). Only `https://…` URLs are kept; up to 12
+per piece.
 
-```js
-{
-  id: "fc-004", name: "Speckled Teal Mug", price_cents: 5000, sold: false,
-  blurb: "Wheel-thrown 10 oz mug in Mayco Speckled Teal, cone 6, dinnerware safe.",
-  photos: ["cups/fc-004-1.jpg", "cups/fc-004-2.jpg", "cups/fc-004-3.jpg"],
-  color: "#4A8A8A",   // fallback swatch shown until the photo loads
-},
-```
+## The admin password
 
-- `price_cents` is the price in cents (`5000` = $50.00).
-- `sold: true` hides the Buy button and shows a "Sold" badge — set it after a piece sells.
-- `color` is a fallback swatch; it shows if a photo is missing.
-
-## 3. Deploy
-
-Commit and push, then on each box:
+`ADMIN_PASSWORD` is read from Secrets Manager (same secret as the Stripe keys).
+Set or change it with:
 
 ```bash
-cd amaco-glazes-shop && git pull --ff-only && sudo systemctl restart glaze-shop
+# merge ADMIN_PASSWORD into the existing secret (keeps the Stripe keys)
+SECRET=glaze-shop/test   # or glaze-shop/prod
+aws secretsmanager get-secret-value --secret-id "$SECRET" --region us-east-1 --query SecretString --output text \
+  | jq '. + {ADMIN_PASSWORD: "your-password-here"}' \
+  | xargs -0 -I{} aws secretsmanager put-secret-value --secret-id "$SECRET" --region us-east-1 --secret-string {}
+# then restart:  sudo systemctl restart glaze-shop
 ```
 
-(No `sync-catalog` needed — finished cups are priced at checkout with Stripe
-`price_data`, not pre-made Stripe Prices.)
-
-## Prefer to hand it off?
-
-Send the photos + each cup's name, price, and a one-line description to
-customerservice@sampleglaze.com (or drop them in `public/cups/`), and they can be
-wired in for you.
+If `ADMIN_PASSWORD` isn't set, the admin endpoints return 503 and `/admin` can't
+be used (the storefront still works).
