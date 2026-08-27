@@ -3,7 +3,7 @@
 // Confirmed Checkout Sessions land in the `orders` table, with one `order_items`
 // row per glaze so fulfillment can see exactly what to pull and pack without
 // re-parsing a metadata string. Replaces the old orders.json flat file.
-import { db, parseGlazes } from "./db.js";
+import { db, parseGlazes, decrementProductStock, decrementPieceStock, getPiece } from "./db.js";
 
 const findBySession = db.prepare("SELECT * FROM orders WHERE stripe_session_id = ?");
 
@@ -69,10 +69,25 @@ export const recordOrder = db.transaction(order => {
     orderId = info.lastInsertRowid;
   }
 
+  // Draw down inventory only for a brand-new, non-failed order: a webhook
+  // redelivery hits the `existing` branch (no double-count), and a failed async
+  // payment arrives flagged "canceled" (no phantom sale).
+  const drawDown = !existing && order.fulfillmentStatus !== "canceled";
+
   deleteItems.run(orderId);
   for (const it of parseGlazes(order.glazes)) {
-    const prod = productByCode.get(it.code);
-    insertItem.run(orderId, it.code, prod?.name ?? null, prod?.price_cents ?? null, it.qty);
+    // Piece line items are encoded as "piece#<id>"; everything else is a glaze code.
+    const pieceMatch = /^piece#(\d+)$/.exec(it.code);
+    if (pieceMatch) {
+      const pieceId = Number(pieceMatch[1]);
+      const piece = getPiece(pieceId);
+      insertItem.run(orderId, it.code, piece?.name ?? null, piece?.price_cents ?? null, it.qty);
+      if (drawDown) decrementPieceStock(pieceId, it.qty);
+    } else {
+      const prod = productByCode.get(it.code);
+      insertItem.run(orderId, it.code, prod?.name ?? null, prod?.price_cents ?? null, it.qty);
+      if (drawDown) decrementProductStock(it.code, it.qty);
+    }
   }
 
   return order;

@@ -4,28 +4,29 @@
 // without a redeploy. These start empty and are filled once the fetch resolves.
 let PRODUCTS = [];
 let SERIES_NAMES = {};
-let PIECES = [];   // one-of-a-kind finished pieces (for cart rehydration)
+let PIECES = [];   // finished pieces (for cart rehydration and add-to-cart)
 
 let cart = [];
 let activeFilter = "all";
 let searchQuery = "";
 
 // ── Cart persistence ──
-// Only the identity is stored — { code, qty } for a glaze, { kind:"piece", id }
-// for a one-of-a-kind piece. Name/price/photo are re-hydrated from PRODUCTS /
+// Only the identity is stored — { code, qty } for a glaze, { kind:"piece", id, qty }
+// for a finished piece. Name/price/photo/stock are re-hydrated from PRODUCTS /
 // PIECES on load, so a catalog or price change is never served stale from a
 // shopper's browser — same trust model the server uses when it re-prices.
 const CART_KEY = "amaco-cart-v1";
 
-function pieceToCartItem(pc) {
-  return { kind: "piece", id: pc.id, name: pc.name, price: pc.price, img: (pc.photos && pc.photos[0]) || null, color: pc.color, qty: 1 };
+function pieceToCartItem(pc, qty = 1) {
+  const stock = pc.stock ?? 0;
+  return { kind: "piece", id: pc.id, name: pc.name, price: pc.price, img: (pc.photos && pc.photos[0]) || null, color: pc.color, stock, qty: Math.min(Math.max(1, qty), Math.max(1, stock)) };
 }
 
 function saveCart() {
   try {
     localStorage.setItem(
       CART_KEY,
-      JSON.stringify(cart.map(i => (i.kind === "piece" ? { kind: "piece", id: i.id } : { code: i.code, qty: i.qty })))
+      JSON.stringify(cart.map(i => (i.kind === "piece" ? { kind: "piece", id: i.id, qty: i.qty } : { code: i.code, qty: i.qty })))
     );
   } catch (_) {
     // Private mode or storage full — degrade to in-memory-only, as before.
@@ -49,15 +50,17 @@ function loadCart() {
     if (entry && (entry.kind === "piece" || entry.id != null)) {
       const pc = PIECES.find(p => String(p.id) === String(entry.id));
       if (!pc) { dropped.push("a piece"); continue; }
-      if (pc.sold) { dropped.push(pc.name); continue; }
-      items.push(pieceToCartItem(pc));
+      if (pc.sold || (pc.stock ?? 0) <= 0) { dropped.push(pc.name); continue; }
+      const wantQty = Math.max(1, Math.floor(Number(entry.qty) || 1));
+      items.push(pieceToCartItem(pc, Math.min(wantQty, pc.stock)));
       continue;
     }
     const product = PRODUCTS.find(p => p.code === entry.code);
     if (!product) { dropped.push(entry.code); continue; }
-    if (product.outOfStock) { dropped.push(product.name); continue; }
-    // Clamp to the server's accepted range (1..99).
-    const qty = Math.min(99, Math.max(1, Math.floor(Number(entry.qty) || 0)));
+    if (product.outOfStock || (product.stock ?? 0) <= 0) { dropped.push(product.name); continue; }
+    // Clamp to what's in stock, within the server's accepted range (1..99).
+    const cap = Math.min(99, product.stock);
+    const qty = Math.min(cap, Math.max(1, Math.floor(Number(entry.qty) || 0)));
     items.push({ kind: "glaze", ...product, qty });
   }
   return { items, dropped };
@@ -216,11 +219,16 @@ if (searchInput) {
 // ── Cart ──
 function addToCart(code) {
   const product = PRODUCTS.find(p => p.code === code);
-  if (!product || product.outOfStock) return;
+  if (!product || product.outOfStock || (product.stock ?? 0) <= 0) return;
 
+  const cap = Math.min(99, product.stock);
   const existing = cart.find(i => i.kind !== "piece" && i.code === code);
-  if (existing) existing.qty++;
-  else cart.push({ kind: "glaze", ...product, qty: 1 });
+  if (existing) {
+    if (existing.qty >= cap) { showToast(`Only ${cap} of ${product.name} in stock.`); return; }
+    existing.qty++;
+  } else {
+    cart.push({ kind: "glaze", ...product, qty: 1 });
+  }
 
   updateCartUI();
 
@@ -234,24 +242,42 @@ function addToCart(code) {
   }
 }
 
-// Add a one-of-a-kind piece. Only one of each (qty 1) and never a sold piece.
+// Add a finished piece, or bump its quantity — up to the number in stock.
 function addPieceToCart(id) {
   const pc = PIECES.find(p => String(p.id) === String(id));
-  if (!pc || pc.sold) return;
-  if (cart.some(i => i.kind === "piece" && String(i.id) === String(id))) {
-    showToast(`${pc.name} is already in your cart.`);
-    return;
+  if (!pc || pc.sold || (pc.stock ?? 0) <= 0) return;
+  const existing = cart.find(i => i.kind === "piece" && String(i.id) === String(id));
+  if (existing) {
+    if (existing.qty >= pc.stock) { showToast(`Only ${pc.stock} of ${pc.name} left.`); return; }
+    existing.qty++;
+    showToast(`Added another ${pc.name} to your cart.`);
+  } else {
+    cart.push(pieceToCartItem(pc));
+    showToast(`Added ${pc.name} to your cart.`);
   }
-  cart.push(pieceToCartItem(pc));
   updateCartUI();
-  showToast(`Added ${pc.name} to your cart.`);
 }
 
 function changeQty(code, delta) {
   const item = cart.find(i => i.kind !== "piece" && i.code === code);
   if (!item) return;
+  const product = PRODUCTS.find(p => p.code === code);
+  const cap = Math.min(99, product ? product.stock : 99);
+  if (delta > 0 && item.qty >= cap) { showToast(`Only ${cap} of ${item.name} in stock.`); return; }
   item.qty += delta;
   if (item.qty <= 0) cart = cart.filter(i => !(i.kind !== "piece" && i.code === code));
+  updateCartUI();
+}
+
+// Change a piece's quantity in the cart, capped at what's in stock.
+function changePieceQty(id, delta) {
+  const item = cart.find(i => i.kind === "piece" && String(i.id) === String(id));
+  if (!item) return;
+  const pc = PIECES.find(p => String(p.id) === String(id));
+  const cap = pc ? (pc.stock ?? item.stock) : item.stock;
+  if (delta > 0 && item.qty >= cap) { showToast(`Only ${cap} of ${item.name} left.`); return; }
+  item.qty += delta;
+  if (item.qty <= 0) cart = cart.filter(i => !(i.kind === "piece" && String(i.id) === String(id)));
   updateCartUI();
 }
 
@@ -286,18 +312,20 @@ function updateCartUI() {
       : `<div class="cart-item-swatch" style="background:${item.color}"></div>`;
 
     if (item.kind === "piece") {
-      // One-of-a-kind: no quantity, just a remove control.
+      // Finished pieces can be bought up to the number in stock.
       return `
       <div class="cart-item">
         ${thumb}
         <div class="cart-item-info">
           <div class="cart-item-name">${item.name}</div>
-          <div class="cart-item-sub">One of a kind</div>
+          <div class="cart-item-sub">$${item.price.toFixed(2)} each</div>
         </div>
         <div class="cart-item-right">
-          <span class="cart-item-price">$${item.price.toFixed(2)}</span>
+          <span class="cart-item-price">$${(item.price * item.qty).toFixed(2)}</span>
           <div class="cart-item-controls">
-            <button class="qty-btn" onclick="removePiece('${item.id}')" aria-label="Remove piece">✕</button>
+            <button class="qty-btn" onclick="changePieceQty('${item.id}', -1)" aria-label="Decrease quantity">−</button>
+            <span class="qty-num">${item.qty}</span>
+            <button class="qty-btn" onclick="changePieceQty('${item.id}', 1)" aria-label="Increase quantity">+</button>
           </div>
         </div>
       </div>`;
@@ -456,7 +484,7 @@ async function checkout() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        items: cart.map(i => (i.kind === "piece" ? { kind: "piece", pieceId: i.id } : { code: i.code, qty: i.qty })),
+        items: cart.map(i => (i.kind === "piece" ? { kind: "piece", pieceId: i.id, qty: i.qty } : { code: i.code, qty: i.qty })),
       }),
     });
 

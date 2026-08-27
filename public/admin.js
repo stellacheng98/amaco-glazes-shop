@@ -61,15 +61,17 @@ function renderList(pieces) {
   if (!pieces.length) { list.innerHTML = `<div class="adm-empty">No pieces yet — add one above.</div>`; return; }
   list.innerHTML = pieces.map(p => {
     const cover = p.photos && p.photos[0] ? `background-image:url('${esc(p.photos[0])}')` : `background:${esc(p.color || "#E8D9C3")}`;
+    const stock = p.stock ?? (p.sold ? 0 : 0);
+    const stockLabel = stock > 0 ? `${stock} in stock` : `<span class="psold">Sold out</span>`;
     return `
       <div class="prow">
         <div class="pthumb" style="${cover}"></div>
         <div>
-          <div class="pname">${esc(p.name)} ${p.sold ? '<span class="psold">· Sold</span>' : ""}</div>
-          <div class="pmeta">${money(p.price)} · ${p.photos.length} photo${p.photos.length === 1 ? "" : "s"} · id ${p.id}</div>
+          <div class="pname">${esc(p.name)}</div>
+          <div class="pmeta">${money(p.price)} · ${stockLabel} · ${p.photos.length} photo${p.photos.length === 1 ? "" : "s"} · id ${p.id}</div>
         </div>
         <div class="pactions">
-          <button class="btn-sm" onclick="toggleSold(${p.id}, ${p.sold ? "false" : "true"})">${p.sold ? "Mark available" : "Mark sold"}</button>
+          <button class="btn-sm" onclick="setCount(${p.id}, ${stock})">Set qty</button>
           <button class="btn-sm danger" onclick="removePiece(${p.id}, '${esc(p.name).replace(/'/g, "\\'")}')">Delete</button>
         </div>
       </div>`;
@@ -90,11 +92,13 @@ async function addPiece() {
     await api("POST", "/api/admin/pieces", {
       name: document.getElementById("f-name").value,
       price: document.getElementById("f-price").value,
+      stock: document.getElementById("f-stock").value,
       color: document.getElementById("f-color").value.trim(),
       blurb: document.getElementById("f-blurb").value,
       photos: document.getElementById("f-photos").value,
     });
     ["f-name", "f-price", "f-color", "f-blurb", "f-photos"].forEach(id => (document.getElementById(id).value = ""));
+    document.getElementById("f-stock").value = "1";
     flash("add-msg", "Piece added.");
     refresh();
   } catch (err) {
@@ -105,8 +109,12 @@ async function addPiece() {
   }
 }
 
-async function toggleSold(id, sold) {
-  try { await api("PATCH", `/api/admin/pieces/${id}`, { sold }); refresh(); }
+async function setCount(id, current) {
+  const input = prompt("Quantity in stock:", String(current ?? 0));
+  if (input === null) return;
+  const n = Math.floor(Number(input));
+  if (!Number.isFinite(n) || n < 0) { alert("Enter a whole number (0 or more)."); return; }
+  try { await api("PATCH", `/api/admin/pieces/${id}`, { stock: n }); refresh(); }
   catch (err) { if (/password/i.test(err.message)) { clearAuth(); showLock(err.message); } else alert(err.message); }
 }
 
