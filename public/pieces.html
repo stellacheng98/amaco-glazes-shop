@@ -26,6 +26,9 @@
     .cup-card-name { font-weight: 600; color: var(--ink); }
     .cup-card-price { color: var(--peach); font-weight: 600; }
     .cup-card-price.sold { color: var(--ink3); text-decoration: line-through; }
+    .cup-add { margin-top: 8px; align-self: flex-start; font: inherit; font-size: .8rem; font-weight: 600; color: #fff; background: var(--peach); border: none; border-radius: 999px; padding: 7px 14px; cursor: pointer; }
+    .cup-add:hover { transform: translateY(-1px); }
+    .cup-add.sold { background: var(--bg3); color: var(--ink3); cursor: default; }
 
     /* Detail */
     .cd-back { display: inline-flex; gap: 6px; font-size: .9rem; color: var(--ink2); text-decoration: none; margin: 8px 0 22px; }
@@ -71,6 +74,10 @@
         <a href="shop.html" class="nav-link">Glazes</a>
         <!-- <a href="build-a-cup.html" class="nav-link">Build a Cup</a> -->
         <a href="custom.html" class="nav-link">Custom</a>
+        <button class="cart-btn" onclick="toggleCart()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+          Cart <span class="cart-count" id="cart-count">0</span>
+        </button>
       </div>
     </div>
   </nav>
@@ -78,6 +85,30 @@
   <main class="cups" id="cups-root">
     <div class="cups-empty">Loading pieces…</div>
   </main>
+
+  <!-- CART DRAWER (shared with the shop, driven by app.js) -->
+  <div class="cart-overlay" id="cart-overlay" onclick="toggleCart()"></div>
+  <aside class="cart-drawer" id="cart-drawer">
+    <div class="cart-header">
+      <h2>Your cart</h2>
+      <button class="cart-close" onclick="toggleCart()" aria-label="Close cart">✕</button>
+    </div>
+    <div class="cart-items" id="cart-items">
+      <div class="cart-empty">
+        <span class="cart-empty-icon">🐾</span>
+        Your cart is empty.
+      </div>
+    </div>
+    <div class="cart-footer" id="cart-footer" style="display:none">
+      <div class="cart-total">
+        <span>Total</span>
+        <strong id="cart-total">$0.00</strong>
+      </div>
+      <div class="checkout-error" id="checkout-error" role="alert" style="display:none"></div>
+      <button class="btn-primary full-width" id="checkout-btn" onclick="checkout()">Checkout →</button>
+      <p class="cart-note">Secure payment via Stripe · Shipping calculated at checkout</p>
+    </div>
+  </aside>
 
   <!-- FOOTER -->
   <footer class="footer">
@@ -98,6 +129,7 @@
     </div>
   </footer>
 
+  <script src="app.js"></script>
   <script src="pieces.js"></script>
 </body>
 </html>

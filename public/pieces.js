@@ -14,7 +14,7 @@ function artStyle(photo, color) {
     : `background:${color};`;
 }
 
-async function init() {
+async function initPieces() {
   try {
     CUPS = await fetch("/api/finished-cups").then(r => r.json());
   } catch (_) {
@@ -35,6 +35,9 @@ function renderGrid() {
       <div class="cup-card-body">
         <span class="cup-card-name">${esc(c.name)}</span>
         <span class="cup-card-price ${c.sold ? "sold" : ""}">${money(c.price)}</span>
+        ${c.sold
+          ? `<span class="cup-add sold">Sold</span>`
+          : `<button class="cup-add" onclick="event.preventDefault();event.stopPropagation();addPieceToCart(${c.id})">Add to cart</button>`}
       </div>
     </a>`).join("");
   root.innerHTML = `
@@ -57,7 +60,7 @@ function renderDetail(id) {
   const thumbs = photos.map((p, i) => `<div class="cd-thumb ${i === 0 ? "on" : ""}" style="${artStyle(p, c.color)}" onclick="setMain(${i})"></div>`).join("");
   const buy = c.sold
     ? `<button class="btn-primary full-width sold" disabled>Sold</button>`
-    : `<button class="btn-primary full-width" id="buy-btn" onclick="buyCup('${esc(c.id)}')">Buy this piece →</button>`;
+    : `<button class="btn-primary full-width" onclick="addPieceToCart('${esc(c.id)}'); toggleCart();">Add to cart →</button>`;
   root.innerHTML = `
     <a class="cd-back" href="pieces.html">← Back to pieces</a>
     <div class="cd-grid">
@@ -114,4 +117,4 @@ async function buyCup(id) {
   }
 }
 
-init();
+initPieces();
