@@ -18,7 +18,7 @@ async function init() {
   try {
     CUPS = await fetch("/api/finished-cups").then(r => r.json());
   } catch (_) {
-    document.getElementById("cups-root").innerHTML = `<div class="cups-empty">Couldn't load finished cups. Please refresh.</div>`;
+    document.getElementById("cups-root").innerHTML = `<div class="cups-empty">Couldn't load finished pieces. Please refresh.</div>`;
     return;
   }
   const id = new URLSearchParams(location.search).get("id");
@@ -39,27 +39,27 @@ function renderGrid() {
     </a>`).join("");
   root.innerHTML = `
     <div class="cups-head">
-      <p class="cups-eyebrow">Finished cups</p>
-      <h1 class="cups-title">One-of-a-kind cups</h1>
-      <p class="cups-sub">Each of these is a finished piece — glazed, fired, and photographed. Every cup is unique and sells only once. Looking for something made just for you? See <a href="custom.html">custom orders</a>.</p>
+      <p class="cups-eyebrow">Finished pieces</p>
+      <h1 class="cups-title">One-of-a-kind pieces</h1>
+      <p class="cups-sub">Each of these is a finished piece — glazed, fired, and photographed. Every piece is unique and sells only once. Looking for something made just for you? See <a href="custom.html">custom orders</a>.</p>
     </div>
-    ${CUPS.length ? `<div class="cups-grid">${cards}</div>` : `<div class="cups-empty">No finished cups listed yet — check back soon.</div>`}`;
+    ${CUPS.length ? `<div class="cups-grid">${cards}</div>` : `<div class="cups-empty">No finished pieces listed yet — check back soon.</div>`}`;
 }
 
 function renderDetail(id) {
   const root = document.getElementById("cups-root");
   const c = CUPS.find(x => x.id === id);
   if (!c) {
-    root.innerHTML = `<div class="cups-empty">We couldn't find that piece.<div style="margin-top:16px"><a class="cd-back" href="cups.html">← Back to cups</a></div></div>`;
+    root.innerHTML = `<div class="cups-empty">We couldn't find that piece.<div style="margin-top:16px"><a class="cd-back" href="cups.html">← Back to pieces</a></div></div>`;
     return;
   }
   const photos = c.photos.length ? c.photos : [null];
   const thumbs = photos.map((p, i) => `<div class="cd-thumb ${i === 0 ? "on" : ""}" style="${artStyle(p, c.color)}" onclick="setMain(${i})"></div>`).join("");
   const buy = c.sold
     ? `<button class="btn-primary full-width sold" disabled>Sold</button>`
-    : `<button class="btn-primary full-width" id="buy-btn" onclick="buyCup('${esc(c.id)}')">Buy this cup →</button>`;
+    : `<button class="btn-primary full-width" id="buy-btn" onclick="buyCup('${esc(c.id)}')">Buy this piece →</button>`;
   root.innerHTML = `
-    <a class="cd-back" href="cups.html">← Back to cups</a>
+    <a class="cd-back" href="cups.html">← Back to pieces</a>
     <div class="cd-grid">
       <div class="cd-gallery">
         <div class="cd-main" id="cd-main" style="${artStyle(photos[0], c.color)}"></div>
