@@ -46,6 +46,7 @@ db.exec(`
     specs              TEXT,
     brand              TEXT,
     in_stock           INTEGER NOT NULL DEFAULT 1,
+    stock              INTEGER NOT NULL DEFAULT 10,
     is_new             INTEGER NOT NULL DEFAULT 0,
     is_active          INTEGER NOT NULL DEFAULT 1,
     sort_order         INTEGER NOT NULL DEFAULT 0,
@@ -81,9 +82,9 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
 
-  -- Finished one-of-a-kind pieces (the "Pieces" section). Each row is a unique
-  -- item: it sells once (sold flag). Prices are authoritative here. Photos are a
-  -- JSON array of image URLs (hosted in S3), managed from the admin page.
+  -- Finished pieces (the "Pieces" section). Each has a stock count set from the
+  -- admin page; availability is derived from stock > 0. Prices are authoritative
+  -- here. Photos are a JSON array of image URLs (hosted in S3).
   CREATE TABLE IF NOT EXISTS pieces (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     name         TEXT NOT NULL,
@@ -92,6 +93,7 @@ db.exec(`
     color        TEXT,
     photos       TEXT,
     sold         INTEGER NOT NULL DEFAULT 0,
+    stock        INTEGER NOT NULL DEFAULT 1,
     sort_order   INTEGER NOT NULL DEFAULT 0,
     created_at   TEXT,
     updated_at   TEXT
@@ -136,7 +138,9 @@ function toClientProduct(row) {
   // The shop began as AMACO-only, so rows predating multi-brand have no brand;
   // treat those as AMACO.
   p.brand = row.brand || "AMACO";
-  if (!row.in_stock) p.outOfStock = true;
+  // Stock is the count; availability is derived from it.
+  p.stock = row.stock ?? 0;
+  if (p.stock <= 0) p.outOfStock = true;
   if (row.is_new) p.isNew = true;
   return p;
 }
@@ -145,7 +149,7 @@ function toClientProduct(row) {
 export function getCatalog() {
   return db
     .prepare(
-      `SELECT code, name, series_code, color, price_cents, image_url, description, specs, brand, in_stock, is_new
+      `SELECT code, name, series_code, color, price_cents, image_url, description, specs, brand, in_stock, stock, is_new
        FROM products WHERE is_active = 1
        ORDER BY sort_order, code`
     )
@@ -166,10 +170,21 @@ export function getSeriesMap() {
 export function getProductForCheckout(code) {
   return db
     .prepare(
-      `SELECT code, name, price_cents, in_stock, is_active, stripe_price_id
+      `SELECT code, name, price_cents, in_stock, stock, is_active, stripe_price_id
        FROM products WHERE code = ?`
     )
     .get(code);
+}
+
+// Decrements a glaze's stock by qty (never below 0) and keeps in_stock in sync.
+// Returns the resulting stock, or null if the code is unknown.
+export function decrementProductStock(code, qty) {
+  const row = db.prepare("SELECT stock FROM products WHERE code = ?").get(code);
+  if (!row) return null;
+  const next = Math.max(0, (row.stock ?? 0) - Math.max(0, Math.floor(qty || 0)));
+  db.prepare("UPDATE products SET stock = ?, in_stock = ?, updated_at = ? WHERE code = ?")
+    .run(next, next > 0 ? 1 : 0, nowIso(), code);
+  return next;
 }
 
 export function getStock(code) {
@@ -183,10 +198,11 @@ export function getOutOfStock() {
 }
 
 // Returns the number of rows changed — 0 means no glaze had that code.
+// Marking out of stock zeroes the count; marking in stock restocks to 10.
 export function setStock(code, inStock) {
   return db
-    .prepare("UPDATE products SET in_stock = ?, updated_at = ? WHERE code = ?")
-    .run(inStock ? 1 : 0, nowIso(), code).changes;
+    .prepare("UPDATE products SET in_stock = ?, stock = ?, updated_at = ? WHERE code = ?")
+    .run(inStock ? 1 : 0, inStock ? 10 : 0, nowIso(), code).changes;
 }
 
 export function countPricedProducts() {
@@ -248,9 +264,9 @@ function insertProductRow(p, sortOrder, now, stripePrices) {
     _insertProductStmt = db.prepare(
       `INSERT INTO products
          (code, name, series_code, color, price_cents, image_url, description, specs, brand,
-          in_stock, is_new, is_active, sort_order,
+          in_stock, stock, is_new, is_active, sort_order,
           stripe_product_id, stripe_price_id, stripe_price_cents, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)`
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)`
     );
   }
   const sp = stripePrices[p.code] || {};
@@ -265,6 +281,7 @@ function insertProductRow(p, sortOrder, now, stripePrices) {
     p.specs ? JSON.stringify(p.specs) : null,
     p.brand ?? null,
     p.outOfStock ? 0 : 1,
+    p.outOfStock ? 0 : 10,
     p.isNew ? 1 : 0,
     sortOrder,
     sp.productId ?? null,
@@ -362,6 +379,21 @@ function ensureProductColumns() {
   if (!cols.includes("description")) db.exec("ALTER TABLE products ADD COLUMN description TEXT");
   if (!cols.includes("specs")) db.exec("ALTER TABLE products ADD COLUMN specs TEXT");
   if (!cols.includes("brand")) db.exec("ALTER TABLE products ADD COLUMN brand TEXT");
+  if (!cols.includes("stock")) {
+    // New stock count: start in-stock glazes at 10, out-of-stock ones at 0.
+    db.exec("ALTER TABLE products ADD COLUMN stock INTEGER NOT NULL DEFAULT 10");
+    db.exec("UPDATE products SET stock = 0 WHERE in_stock = 0");
+  }
+}
+
+// Adds the pieces.stock column to older databases. Sold pieces start at 0,
+// everything else at 1 (each piece was a single unique item before counts).
+function ensurePieceColumns() {
+  const cols = db.prepare("PRAGMA table_info(pieces)").all().map(c => c.name);
+  if (!cols.includes("stock")) {
+    db.exec("ALTER TABLE pieces ADD COLUMN stock INTEGER NOT NULL DEFAULT 1");
+    db.exec("UPDATE pieces SET stock = 0 WHERE sold = 1");
+  }
 }
 
 // Backfills description and specs from products.js into rows that don't have
@@ -402,6 +434,7 @@ function backfillProductContent() {
 function toClientPiece(row) {
   let photos = [];
   try { photos = row.photos ? JSON.parse(row.photos) : []; } catch { photos = []; }
+  const stock = row.stock ?? 0;
   return {
     id: row.id,
     name: row.name,
@@ -409,7 +442,8 @@ function toClientPiece(row) {
     blurb: row.blurb || "",
     color: row.color || "#E8D9C3",
     photos,
-    sold: !!row.sold,
+    stock,
+    sold: stock <= 0,
   };
 }
 
@@ -423,14 +457,15 @@ export function getPiece(id) {
   return db.prepare("SELECT * FROM pieces WHERE id = ?").get(id);
 }
 
-export function insertPiece({ name, priceCents, blurb, color, photos }) {
+export function insertPiece({ name, priceCents, blurb, color, photos, stock }) {
   const now = nowIso();
+  const count = Math.max(0, Math.floor(stock ?? 1));
   const info = db
     .prepare(
-      `INSERT INTO pieces (name, price_cents, blurb, color, photos, sold, sort_order, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)`
+      `INSERT INTO pieces (name, price_cents, blurb, color, photos, sold, stock, sort_order, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
-    .run(name, priceCents, blurb ?? null, color ?? null, JSON.stringify(photos ?? []), Date.parse(now) || 0, now, now);
+    .run(name, priceCents, blurb ?? null, color ?? null, JSON.stringify(photos ?? []), count > 0 ? 0 : 1, count, Date.parse(now) || 0, now, now);
   return info.lastInsertRowid;
 }
 
@@ -443,7 +478,15 @@ export function updatePiece(id, fields) {
   if (fields.blurb !== undefined) { sets.push("blurb = ?"); vals.push(fields.blurb); }
   if (fields.color !== undefined) { sets.push("color = ?"); vals.push(fields.color); }
   if (fields.photos !== undefined) { sets.push("photos = ?"); vals.push(JSON.stringify(fields.photos)); }
-  if (fields.sold !== undefined) { sets.push("sold = ?"); vals.push(fields.sold ? 1 : 0); }
+  if (fields.stock !== undefined) {
+    const count = Math.max(0, Math.floor(fields.stock));
+    sets.push("stock = ?"); vals.push(count);
+    sets.push("sold = ?"); vals.push(count > 0 ? 0 : 1);
+  } else if (fields.sold !== undefined) {
+    // Legacy mark-sold/available toggle: keep the count consistent.
+    sets.push("sold = ?"); vals.push(fields.sold ? 1 : 0);
+    sets.push("stock = ?"); vals.push(fields.sold ? 0 : 1);
+  }
   if (sets.length === 0) return 0;
   sets.push("updated_at = ?"); vals.push(nowIso());
   vals.push(id);
@@ -454,12 +497,23 @@ export function deletePiece(id) {
   return db.prepare("DELETE FROM pieces WHERE id = ?").run(id).changes;
 }
 
+// Lowers a piece's stock after a sale, clamping at 0 and keeping the sold flag
+// in sync. Returns the new count, or null if the piece no longer exists.
+export function decrementPieceStock(id, qty) {
+  const row = db.prepare("SELECT stock FROM pieces WHERE id = ?").get(id);
+  if (!row) return null;
+  const next = Math.max(0, (row.stock ?? 0) - Math.max(0, Math.floor(qty || 0)));
+  db.prepare("UPDATE pieces SET stock = ?, sold = ?, updated_at = ? WHERE id = ?")
+    .run(next, next > 0 ? 0 : 1, nowIso(), id);
+  return next;
+}
+
 // Seed a few example pieces the first time so the section isn't empty.
 function seedPieces() {
   if (db.prepare("SELECT COUNT(*) AS c FROM pieces").get().c > 0) return;
   const samples = [
-    { name: "Cobalt Pour Mug", priceCents: 4800, blurb: "Wheel-thrown 10 oz mug in Blue Surf breaking green over carved texture. Cone 6, dinnerware safe.", color: "#2C5F8A", photos: [] },
-    { name: "Amber Crystal Tumbler", priceCents: 5200, blurb: "Handleless 8 oz tumbler finished in Desert Dusk — amber matte with melting purple-blue crystals.", color: "#B0783E", photos: [] },
+    { name: "Cobalt Pour Mug", priceCents: 4800, blurb: "Wheel-thrown 10 oz mug in Blue Surf breaking green over carved texture. Cone 6, dinnerware safe.", color: "#2C5F8A", photos: [], stock: 1 },
+    { name: "Amber Crystal Tumbler", priceCents: 5200, blurb: "Handleless 8 oz tumbler finished in Desert Dusk — amber matte with melting purple-blue crystals.", color: "#B0783E", photos: [], stock: 1 },
   ];
   samples.forEach((p, i) => insertPiece({ ...p }));
   console.log(`Seeded ${samples.length} example piece(s).`);
@@ -467,6 +521,7 @@ function seedPieces() {
 
 export function seedIfEmpty() {
   ensureProductColumns();
+  ensurePieceColumns();
   if (db.prepare("SELECT COUNT(*) AS c FROM products").get().c === 0) seedCatalog();
   else insertMissingProducts();
   if (db.prepare("SELECT COUNT(*) AS c FROM orders").get().c === 0) importLegacyOrders();

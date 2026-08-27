@@ -57,10 +57,14 @@
         <label for="f-name">Name</label>
         <input class="adm-input" id="f-name" type="text" placeholder="e.g. Cobalt Pour Mug" />
       </div>
-      <div class="adm-row" style="grid-template-columns: 160px 140px;">
+      <div class="adm-row" style="grid-template-columns: 160px 120px 140px;">
         <div class="adm-field">
           <label for="f-price">Price (USD)</label>
           <input class="adm-input" id="f-price" type="text" inputmode="decimal" placeholder="48.00" />
+        </div>
+        <div class="adm-field">
+          <label for="f-stock">Quantity</label>
+          <input class="adm-input" id="f-stock" type="number" min="0" step="1" value="1" />
         </div>
         <div class="adm-field">
           <label for="f-color">Swatch color</label>

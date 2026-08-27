@@ -233,15 +233,21 @@ app.post("/create-checkout-session", checkoutLimiter, async (req, res) => {
     for (const item of items) {
       if (item && (item.kind === "piece" || item.pieceId != null)) {
         const pieceId = item.pieceId ?? item.id;
-        if (seenPieces.has(String(pieceId))) continue; // one-of-a-kind: ignore dupes
+        if (seenPieces.has(String(pieceId))) continue; // merge dupes: one row per piece
         seenPieces.add(String(pieceId));
         const piece = getPiece(pieceId);
         if (!piece) return res.status(400).json({ error: "A piece in your cart is no longer available. Please refresh." });
-        if (piece.sold) return res.status(400).json({ error: `Sorry — "${piece.name}" has already sold.` });
+        const available = piece.stock ?? 0;
+        if (available <= 0) return res.status(400).json({ error: `Sorry — "${piece.name}" has already sold out.` });
+        let quantity = Number(item.qty);
+        if (!Number.isInteger(quantity) || quantity < 1) quantity = 1;
+        if (quantity > available) {
+          return res.status(400).json({ error: `Only ${available} of "${piece.name}" left. Please lower the quantity.` });
+        }
         let cover;
         try { const ph = piece.photos ? JSON.parse(piece.photos) : []; if (ph[0]) cover = [ph[0]]; } catch { /* no cover */ }
-        lineItems.push({ price_data: { currency: "usd", unit_amount: piece.price_cents, product_data: { name: piece.name, images: cover } }, quantity: 1 });
-        summary.push(`piece#${piece.id}`);
+        lineItems.push({ price_data: { currency: "usd", unit_amount: piece.price_cents, product_data: { name: piece.name, images: cover } }, quantity });
+        summary.push(`piece#${piece.id}×${quantity}`);
         continue;
       }
 
@@ -249,7 +255,7 @@ app.post("/create-checkout-session", checkoutLimiter, async (req, res) => {
       if (!glaze || !glaze.is_active) {
         return res.status(400).json({ error: `Unknown glaze: ${item.code}` });
       }
-      if (!glaze.in_stock) {
+      if (!glaze.in_stock || (glaze.stock ?? 0) <= 0) {
         return res.status(400).json({ error: `${glaze.code} ${glaze.name} is out of stock.` });
       }
       if (!glaze.stripe_price_id) {
@@ -258,6 +264,9 @@ app.post("/create-checkout-session", checkoutLimiter, async (req, res) => {
       const quantity = Number(item.qty);
       if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) {
         return res.status(400).json({ error: `Invalid quantity for ${item.code}.` });
+      }
+      if (quantity > glaze.stock) {
+        return res.status(400).json({ error: `Only ${glaze.stock} of ${glaze.code} ${glaze.name} left. Please lower the quantity.` });
       }
       lineItems.push({ price: glaze.stripe_price_id, quantity });
       summary.push(`${item.code}×${quantity}`);
@@ -366,7 +375,7 @@ app.post("/create-finished-cup-checkout-session", checkoutLimiter, async (req, r
   try {
     const piece = getPiece(req.body?.cupId);
     if (!piece) return res.status(400).json({ error: "That piece isn't available." });
-    if (piece.sold) return res.status(400).json({ error: "Sorry — this one-of-a-kind piece has already sold." });
+    if ((piece.stock ?? 0) <= 0) return res.status(400).json({ error: "Sorry — this piece has already sold out." });
 
     // photos is a JSON array of absolute image URLs (S3). Use the first as the cover.
     let cover;
@@ -380,7 +389,7 @@ app.post("/create-finished-cup-checkout-session", checkoutLimiter, async (req, r
       }],
       success_url: `${publicUrl}/success.html?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${publicUrl}/pieces.html`,
-      metadata: { kind: "finished-piece", pieceId: String(piece.id), piece: piece.name },
+      metadata: { kind: "finished-piece", pieceId: String(piece.id), piece: piece.name, glazes: `piece#${piece.id}×1` },
     });
     res.json({ url: session.url });
   } catch (err) {
@@ -419,6 +428,8 @@ function normalizePhotos(input) {
   return list.map(s => String(s).trim()).filter(s => /^https?:\/\//i.test(s)).slice(0, 12);
 }
 const parsePriceCents = price => { const c = Math.round(Number(price) * 100); return Number.isFinite(c) ? c : NaN; };
+// Inventory count for a piece. Accepts `stock` or `count`; NaN means "not provided".
+const parseStock = v => { if (v === undefined || v === null || v === "") return NaN; const n = Math.floor(Number(v)); return Number.isFinite(n) ? Math.max(0, n) : NaN; };
 
 app.get("/api/admin/pieces", adminAuth, (_req, res) => res.json(getPieces()));
 
@@ -428,7 +439,9 @@ app.post("/api/admin/pieces", adminAuth, (req, res) => {
   const priceCents = parsePriceCents(b.price);
   if (!name) return res.status(400).json({ error: "Name is required." });
   if (!(priceCents > 0)) return res.status(400).json({ error: "Price must be a positive number." });
-  const id = insertPiece({ name, priceCents, blurb: String(b.blurb || "").trim(), color: b.color || null, photos: normalizePhotos(b.photos) });
+  const stockRaw = parseStock(b.stock ?? b.count);
+  const stock = Number.isNaN(stockRaw) ? 1 : stockRaw;
+  const id = insertPiece({ name, priceCents, blurb: String(b.blurb || "").trim(), color: b.color || null, photos: normalizePhotos(b.photos), stock });
   res.json({ id });
 });
 
@@ -440,7 +453,13 @@ app.patch("/api/admin/pieces/:id", adminAuth, (req, res) => {
   if (b.blurb !== undefined) fields.blurb = String(b.blurb);
   if (b.color !== undefined) fields.color = b.color;
   if (b.photos !== undefined) fields.photos = normalizePhotos(b.photos);
-  if (b.sold !== undefined) fields.sold = !!b.sold;
+  if (b.stock !== undefined || b.count !== undefined) {
+    const s = parseStock(b.stock ?? b.count);
+    if (Number.isNaN(s)) return res.status(400).json({ error: "Invalid stock count." });
+    fields.stock = s;
+  } else if (b.sold !== undefined) {
+    fields.sold = !!b.sold;
+  }
   const changed = updatePiece(Number(req.params.id), fields);
   if (!changed) return res.status(404).json({ error: "Piece not found." });
   res.json({ ok: true });
