@@ -4,12 +4,18 @@ import rateLimit from "express-rate-limit";
 import Stripe from "stripe";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { timingSafeEqual } from "node:crypto";
 import {
   seedIfEmpty,
   getCatalog,
   getSeriesMap,
   getProductForCheckout,
   countPricedProducts,
+  getPieces,
+  getPiece,
+  insertPiece,
+  updatePiece,
+  deletePiece,
 } from "./db.js";
 import { recordOrder, findOrderBySessionId } from "./orders.js";
 
@@ -49,6 +55,12 @@ if (!process.env.STRIPE_SECRET_KEY) missingSetup.push("STRIPE_SECRET_KEY is not 
 else if (countPricedProducts() === 0) missingSetup.push("no glazes are priced in Stripe yet (run `npm run sync-catalog`)");
 
 const checkoutEnabled = missingSetup.length === 0;
+
+// ── Admin (Pieces inventory) ──────────────────────────────────────────
+// The /admin page manages the finished-pieces inventory. Write endpoints are
+// gated by a shared password (ADMIN_PASSWORD); admin is off when it isn't set.
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
+const adminEnabled = ADMIN_PASSWORD.length > 0;
 
 // ── Webhook ───────────────────────────────────────────────────────────
 // All three carry a Checkout Session as event.data.object. `completed` and
@@ -167,31 +179,9 @@ const TILE_CENTS = 100;   // one glaze on one test tile
 const COMBO_CENTS = 200;  // two glazes layered on one test tile
 const MAX_TILES = 12;
 
-// ── Finished cups for sale (one-of-a-kind inventory) ──────────────────
-// Each finished cup is a unique piece: it sells once, then set sold:true.
-// Prices are authoritative here — never trusted from the browser. Photos are
-// files under public/cups/ (first photo is the cover). To add a piece: drop its
-// photos in public/cups/, add an entry below, and deploy. See docs/finished-cups.md.
-const FINISHED_CUPS = [
-  {
-    id: "fc-001", name: "Cobalt Pour Mug", price_cents: 4800, sold: false,
-    blurb: "Wheel-thrown 10 oz mug in Blue Surf breaking green over carved texture. Cone 6, dinnerware safe.",
-    photos: ["cups/fc-001-1.jpg", "cups/fc-001-2.jpg", "cups/fc-001-3.jpg"],
-    color: "#2C5F8A",
-  },
-  {
-    id: "fc-002", name: "Amber Crystal Tumbler", price_cents: 5200, sold: false,
-    blurb: "Handleless 8 oz tumbler finished in Desert Dusk — amber matte with melting purple-blue crystals.",
-    photos: ["cups/fc-002-1.jpg", "cups/fc-002-2.jpg"],
-    color: "#B0783E",
-  },
-  {
-    id: "fc-003", name: "Frost Crackle Cup", price_cents: 4500, sold: true,
-    blurb: "Porcelain 8 oz cup under AMACO Kiln Ice crackle. One of a kind — sold.",
-    photos: ["cups/fc-003-1.jpg"],
-    color: "#C8DCE8",
-  },
-];
+// Finished one-of-a-kind pieces now live in the `pieces` DB table, managed from
+// the admin page. Prices/availability are read from the DB at request time, so
+// the browser only ever sends a piece id. See db.js and /admin.
 
 // ── Catalog API ───────────────────────────────────────────────────────
 // The front end fetches the catalog at load instead of shipping it as a baked-in
@@ -217,13 +207,9 @@ app.get("/api/cups", (_req, res) => {
   });
 });
 
-// Finished one-of-a-kind cups for sale. Prices come from FINISHED_CUPS server-side;
-// the browser only ever sends a cup id.
+// Finished one-of-a-kind pieces for sale, read from the `pieces` DB table.
 app.get("/api/finished-cups", (_req, res) => {
-  res.json(FINISHED_CUPS.map(c => ({
-    id: c.id, name: c.name, price: c.price_cents / 100, sold: !!c.sold,
-    blurb: c.blurb, photos: c.photos || [], color: c.color || "#E8D9C3",
-  })));
+  res.json(getPieces());
 });
 
 // ── Checkout ──────────────────────────────────────────────────────────
@@ -354,35 +340,100 @@ app.post("/create-cup-checkout-session", checkoutLimiter, async (req, res) => {
   }
 });
 
-// ── Finished-cup checkout ─────────────────────────────────────────────
-// One-of-a-kind piece: priced from FINISHED_CUPS, sold once. The browser sends
-// only the cup id; the amount and availability are decided here.
+// ── Finished-piece checkout ───────────────────────────────────────────
+// One-of-a-kind piece, priced from the `pieces` table and sold once. The browser
+// sends only the piece id; the amount and availability are decided here.
 app.post("/create-finished-cup-checkout-session", checkoutLimiter, async (req, res) => {
   if (!checkoutEnabled) {
     return res.status(503).json({ error: "Checkout isn't set up on this server yet." });
   }
   try {
-    const cup = FINISHED_CUPS.find(c => c.id === req.body?.cupId);
-    if (!cup) return res.status(400).json({ error: "That piece isn't available." });
-    if (cup.sold) return res.status(400).json({ error: "Sorry — this one-of-a-kind piece has already sold." });
+    const piece = getPiece(req.body?.cupId);
+    if (!piece) return res.status(400).json({ error: "That piece isn't available." });
+    if (piece.sold) return res.status(400).json({ error: "Sorry — this one-of-a-kind piece has already sold." });
 
-    const cover = cup.photos && cup.photos[0] ? [`${publicUrl}/${cup.photos[0]}`] : undefined;
+    // photos is a JSON array of absolute image URLs (S3). Use the first as the cover.
+    let cover;
+    try { const ph = piece.photos ? JSON.parse(piece.photos) : []; if (ph[0]) cover = [ph[0]]; } catch { /* no cover */ }
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       payment_method_types: ["card"],
       line_items: [{
-        price_data: { currency: "usd", unit_amount: cup.price_cents, product_data: { name: cup.name, images: cover } },
+        price_data: { currency: "usd", unit_amount: piece.price_cents, product_data: { name: piece.name, images: cover } },
         quantity: 1,
       }],
       success_url: `${publicUrl}/success.html?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${publicUrl}/cups.html`,
-      metadata: { kind: "finished-cup", cupId: cup.id, cup: cup.name },
+      metadata: { kind: "finished-piece", pieceId: String(piece.id), piece: piece.name },
     });
     res.json({ url: session.url });
   } catch (err) {
-    console.error("Could not create Finished-Cup Checkout Session:", err.message);
+    console.error("Could not create Finished-Piece Checkout Session:", err.message);
     res.status(500).json({ error: "Could not start checkout. Please try again." });
   }
+});
+
+// ── Admin: Pieces inventory (gated by ADMIN_PASSWORD) ─────────────────
+// HTTP Basic auth on the write endpoints; the admin page sends the password.
+// The password is compared in constant time. Any username is accepted.
+function adminAuth(req, res, next) {
+  if (!adminEnabled) return res.status(503).json({ error: "Admin is not configured on this server." });
+  const m = /^Basic (.+)$/.exec(req.headers.authorization || "");
+  let ok = false;
+  if (m) {
+    try {
+      const pass = Buffer.from(m[1], "base64").toString("utf8").split(":").slice(1).join(":");
+      const a = Buffer.from(pass), b = Buffer.from(ADMIN_PASSWORD);
+      ok = a.length === b.length && timingSafeEqual(a, b);
+    } catch { ok = false; }
+  }
+  if (!ok) {
+    res.set("WWW-Authenticate", 'Basic realm="Sample Glaze Admin"');
+    return res.status(401).json({ error: "Admin authentication required." });
+  }
+  next();
+}
+
+// Accepts an array of URLs or a newline/comma-separated string; keeps only
+// http(s) URLs (piece images are hosted in S3). Capped at 12.
+function normalizePhotos(input) {
+  let list = [];
+  if (Array.isArray(input)) list = input;
+  else if (typeof input === "string") list = input.split(/[\n,]/);
+  return list.map(s => String(s).trim()).filter(s => /^https?:\/\//i.test(s)).slice(0, 12);
+}
+const parsePriceCents = price => { const c = Math.round(Number(price) * 100); return Number.isFinite(c) ? c : NaN; };
+
+app.get("/api/admin/pieces", adminAuth, (_req, res) => res.json(getPieces()));
+
+app.post("/api/admin/pieces", adminAuth, (req, res) => {
+  const b = req.body || {};
+  const name = String(b.name || "").trim();
+  const priceCents = parsePriceCents(b.price);
+  if (!name) return res.status(400).json({ error: "Name is required." });
+  if (!(priceCents > 0)) return res.status(400).json({ error: "Price must be a positive number." });
+  const id = insertPiece({ name, priceCents, blurb: String(b.blurb || "").trim(), color: b.color || null, photos: normalizePhotos(b.photos) });
+  res.json({ id });
+});
+
+app.patch("/api/admin/pieces/:id", adminAuth, (req, res) => {
+  const b = req.body || {};
+  const fields = {};
+  if (b.name !== undefined) { const n = String(b.name).trim(); if (!n) return res.status(400).json({ error: "Name can't be empty." }); fields.name = n; }
+  if (b.price !== undefined) { const c = parsePriceCents(b.price); if (!(c > 0)) return res.status(400).json({ error: "Invalid price." }); fields.priceCents = c; }
+  if (b.blurb !== undefined) fields.blurb = String(b.blurb);
+  if (b.color !== undefined) fields.color = b.color;
+  if (b.photos !== undefined) fields.photos = normalizePhotos(b.photos);
+  if (b.sold !== undefined) fields.sold = !!b.sold;
+  const changed = updatePiece(Number(req.params.id), fields);
+  if (!changed) return res.status(404).json({ error: "Piece not found." });
+  res.json({ ok: true });
+});
+
+app.delete("/api/admin/pieces/:id", adminAuth, (req, res) => {
+  const changed = deletePiece(Number(req.params.id));
+  if (!changed) return res.status(404).json({ error: "Piece not found." });
+  res.json({ ok: true });
 });
 
 // ── Order confirmation ────────────────────────────────────────────────

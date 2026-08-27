@@ -22,7 +22,7 @@ SECRET_JSON="$(aws secretsmanager get-secret-value \
 
 # Export each key the app expects, if present. jq reads the value by name so no
 # secret is ever placed on a command line or in the process list.
-for KEY in STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET STRIPE_PUBLISHABLE_KEY; do
+for KEY in STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET STRIPE_PUBLISHABLE_KEY ADMIN_PASSWORD; do
   VALUE="$(printf '%s' "$SECRET_JSON" | jq -r --arg k "$KEY" '.[$k] // empty')"
   [ -n "$VALUE" ] && export "$KEY=$VALUE"
 done

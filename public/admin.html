@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en" style="color-scheme: light only;">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex" />
+  <title>Pieces admin — Sample Glaze</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .adm { max-width: 960px; margin: 0 auto; padding: 32px 24px 80px; }
+    .adm h1 { font-family: var(--serif,'Cormorant Garamond',serif); font-size: 2rem; margin: 0 0 4px; color: var(--ink); }
+    .adm-note { color: var(--ink3); font-size: .9rem; margin: 0 0 28px; }
+    .adm-card { background: var(--card); border: 1.5px solid var(--border); border-radius: var(--r); padding: 22px; box-shadow: var(--shadow); margin-bottom: 28px; }
+    .adm-card h2 { font-size: .8rem; letter-spacing: .12em; text-transform: uppercase; color: var(--ink3); margin: 0 0 16px; }
+    .adm-row { display: grid; grid-template-columns: 1fr 140px 120px; gap: 14px; }
+    .adm-field { margin-bottom: 14px; }
+    .adm-field label { display: block; font-size: .8rem; font-weight: 600; color: var(--ink2); margin: 0 0 5px; }
+    .adm-input, .adm-textarea { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: 10px; font: inherit; font-size: .92rem; background: var(--bg); color: var(--ink); }
+    .adm-input:focus, .adm-textarea:focus { outline: none; border-color: var(--peach2); }
+    .adm-textarea { min-height: 84px; resize: vertical; }
+    .adm-hint { font-size: .78rem; color: var(--ink3); margin: 4px 0 0; }
+    .adm-err { display:none; background:#fdecea; color:#a1362b; border-radius:10px; padding:9px 12px; font-size:.85rem; margin:10px 0; }
+    .adm-msg { display:none; background:#eaf7ee; color:#1f7a44; border-radius:10px; padding:9px 12px; font-size:.85rem; margin:10px 0; }
+
+    .plist { display: flex; flex-direction: column; gap: 12px; }
+    .prow { display: grid; grid-template-columns: 56px 1fr auto; gap: 14px; align-items: center; background: var(--card); border: 1.5px solid var(--border); border-radius: 12px; padding: 12px 14px; }
+    .pthumb { width: 56px; height: 56px; border-radius: 8px; background-size: cover; background-position: center; border: 1px solid var(--border); }
+    .pname { font-weight: 600; color: var(--ink); }
+    .pmeta { font-size: .82rem; color: var(--ink3); }
+    .psold { color: #a1362b; font-weight: 600; }
+    .pactions { display: flex; gap: 8px; align-items: center; }
+    .btn-sm { font: inherit; font-size: .82rem; padding: 7px 12px; border-radius: 999px; border: 1.5px solid var(--border); background: var(--card); color: var(--ink2); cursor: pointer; }
+    .btn-sm:hover { border-color: var(--peach2); color: var(--peach); }
+    .btn-sm.danger:hover { border-color: #a1362b; color: #a1362b; }
+    .adm-empty { color: var(--ink3); padding: 20px 0; }
+  </style>
+</head>
+<body>
+  <main class="adm">
+    <h1>🐾 Pieces admin</h1>
+    <p class="adm-note">Add and manage the one-of-a-kind pieces shown on the <a href="cups.html">Pieces</a> page. Photos are hosted in S3 — paste the image URLs here.</p>
+
+    <div class="adm-card">
+      <h2>Add a piece</h2>
+      <div class="adm-field">
+        <label for="f-name">Name</label>
+        <input class="adm-input" id="f-name" type="text" placeholder="e.g. Cobalt Pour Mug" />
+      </div>
+      <div class="adm-row" style="grid-template-columns: 160px 140px;">
+        <div class="adm-field">
+          <label for="f-price">Price (USD)</label>
+          <input class="adm-input" id="f-price" type="text" inputmode="decimal" placeholder="48.00" />
+        </div>
+        <div class="adm-field">
+          <label for="f-color">Swatch color</label>
+          <input class="adm-input" id="f-color" type="text" placeholder="#2C5F8A" />
+        </div>
+      </div>
+      <div class="adm-field">
+        <label for="f-blurb">Description</label>
+        <textarea class="adm-textarea" id="f-blurb" placeholder="Wheel-thrown 10 oz mug in Blue Surf, cone 6, dinnerware safe."></textarea>
+      </div>
+      <div class="adm-field">
+        <label for="f-photos">Photo URLs (S3) — one per line, first is the cover</label>
+        <textarea class="adm-textarea" id="f-photos" placeholder="https://your-bucket.s3.amazonaws.com/pieces/mug-1.jpg&#10;https://your-bucket.s3.amazonaws.com/pieces/mug-2.jpg"></textarea>
+        <p class="adm-hint">Only https URLs are kept. Up to 12 photos.</p>
+      </div>
+      <div class="adm-err" id="add-err"></div>
+      <div class="adm-msg" id="add-msg"></div>
+      <button class="btn-primary" id="add-btn" onclick="addPiece()">Add piece</button>
+    </div>
+
+    <div class="adm-card">
+      <h2>Inventory</h2>
+      <div class="plist" id="plist"><div class="adm-empty">Loading…</div></div>
+    </div>
+  </main>
+
+  <script src="admin.js"></script>
+</body>
+</html>

@@ -80,6 +80,22 @@ db.exec(`
   );
 
   CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
+
+  -- Finished one-of-a-kind pieces (the "Pieces" section). Each row is a unique
+  -- item: it sells once (sold flag). Prices are authoritative here. Photos are a
+  -- JSON array of image URLs (hosted in S3), managed from the admin page.
+  CREATE TABLE IF NOT EXISTS pieces (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    name         TEXT NOT NULL,
+    price_cents  INTEGER NOT NULL,
+    blurb        TEXT,
+    color        TEXT,
+    photos       TEXT,
+    sold         INTEGER NOT NULL DEFAULT 0,
+    sort_order   INTEGER NOT NULL DEFAULT 0,
+    created_at   TEXT,
+    updated_at   TEXT
+  );
 `);
 
 // ── Shared helpers ────────────────────────────────────────────────────
@@ -382,10 +398,78 @@ function backfillProductContent() {
 
 // Populates the catalog on first run and migrates any legacy orders. Idempotent:
 // once a table has rows it is left alone, so this is safe to call on every boot.
+// ── Pieces (finished one-of-a-kind items) ─────────────────────────────
+function toClientPiece(row) {
+  let photos = [];
+  try { photos = row.photos ? JSON.parse(row.photos) : []; } catch { photos = []; }
+  return {
+    id: row.id,
+    name: row.name,
+    price: row.price_cents / 100,
+    blurb: row.blurb || "",
+    color: row.color || "#E8D9C3",
+    photos,
+    sold: !!row.sold,
+  };
+}
+
+// Public/catalog view of the pieces, newest-listed first.
+export function getPieces() {
+  return db.prepare("SELECT * FROM pieces ORDER BY sort_order DESC, id DESC").all().map(toClientPiece);
+}
+
+// Authoritative row used to price and gate a piece checkout.
+export function getPiece(id) {
+  return db.prepare("SELECT * FROM pieces WHERE id = ?").get(id);
+}
+
+export function insertPiece({ name, priceCents, blurb, color, photos }) {
+  const now = nowIso();
+  const info = db
+    .prepare(
+      `INSERT INTO pieces (name, price_cents, blurb, color, photos, sold, sort_order, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)`
+    )
+    .run(name, priceCents, blurb ?? null, color ?? null, JSON.stringify(photos ?? []), Date.parse(now) || 0, now, now);
+  return info.lastInsertRowid;
+}
+
+// Partial update: only the provided fields are changed.
+export function updatePiece(id, fields) {
+  const sets = [];
+  const vals = [];
+  if (fields.name !== undefined) { sets.push("name = ?"); vals.push(fields.name); }
+  if (fields.priceCents !== undefined) { sets.push("price_cents = ?"); vals.push(fields.priceCents); }
+  if (fields.blurb !== undefined) { sets.push("blurb = ?"); vals.push(fields.blurb); }
+  if (fields.color !== undefined) { sets.push("color = ?"); vals.push(fields.color); }
+  if (fields.photos !== undefined) { sets.push("photos = ?"); vals.push(JSON.stringify(fields.photos)); }
+  if (fields.sold !== undefined) { sets.push("sold = ?"); vals.push(fields.sold ? 1 : 0); }
+  if (sets.length === 0) return 0;
+  sets.push("updated_at = ?"); vals.push(nowIso());
+  vals.push(id);
+  return db.prepare(`UPDATE pieces SET ${sets.join(", ")} WHERE id = ?`).run(...vals).changes;
+}
+
+export function deletePiece(id) {
+  return db.prepare("DELETE FROM pieces WHERE id = ?").run(id).changes;
+}
+
+// Seed a few example pieces the first time so the section isn't empty.
+function seedPieces() {
+  if (db.prepare("SELECT COUNT(*) AS c FROM pieces").get().c > 0) return;
+  const samples = [
+    { name: "Cobalt Pour Mug", priceCents: 4800, blurb: "Wheel-thrown 10 oz mug in Blue Surf breaking green over carved texture. Cone 6, dinnerware safe.", color: "#2C5F8A", photos: [] },
+    { name: "Amber Crystal Tumbler", priceCents: 5200, blurb: "Handleless 8 oz tumbler finished in Desert Dusk — amber matte with melting purple-blue crystals.", color: "#B0783E", photos: [] },
+  ];
+  samples.forEach((p, i) => insertPiece({ ...p }));
+  console.log(`Seeded ${samples.length} example piece(s).`);
+}
+
 export function seedIfEmpty() {
   ensureProductColumns();
   if (db.prepare("SELECT COUNT(*) AS c FROM products").get().c === 0) seedCatalog();
   else insertMissingProducts();
   if (db.prepare("SELECT COUNT(*) AS c FROM orders").get().c === 0) importLegacyOrders();
   backfillProductContent();
+  seedPieces();
 }

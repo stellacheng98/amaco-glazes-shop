@@ -48,7 +48,7 @@ function renderGrid() {
 
 function renderDetail(id) {
   const root = document.getElementById("cups-root");
-  const c = CUPS.find(x => x.id === id);
+  const c = CUPS.find(x => String(x.id) === String(id));
   if (!c) {
     root.innerHTML = `<div class="cups-empty">We couldn't find that piece.<div style="margin-top:16px"><a class="cd-back" href="cups.html">← Back to pieces</a></div></div>`;
     return;
